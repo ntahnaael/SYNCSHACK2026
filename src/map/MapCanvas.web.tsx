@@ -2,8 +2,11 @@ import { createElement, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { categoryMeta } from '@/constants/pins';
+import { useAppColors } from '@/hooks/use-app-colors';
+import { useThemeMode } from '@/store/ThemeContext';
 
 import { darkMapStyle } from './darkMapStyle';
+import { lightMapStyle } from './lightMapStyle';
 import { loadGoogleMaps } from './loadGoogleMaps.web';
 import type { MapCanvasProps } from './mapTypes';
 import { pinIconSvg } from './pinIcon';
@@ -11,6 +14,7 @@ import { pinIconSvg } from './pinIcon';
 type GoogleMap = {
   panTo: (latLng: { lat: number; lng: number }) => void;
   getCenter: () => { lat: () => number; lng: () => number } | undefined;
+  setOptions: (opts: Record<string, unknown>) => void;
   addListener: (event: string, handler: (e?: { latLng?: { lat: () => number; lng: () => number } }) => void) => void;
 };
 
@@ -34,6 +38,8 @@ export default function MapCanvas({
   const onPinPressRef = useRef(onPinPress);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const { isDark } = useThemeMode();
+  const colors = useAppColors();
 
   onViewChangeRef.current = onViewChange;
   onPinPressRef.current = onPinPress;
@@ -54,12 +60,12 @@ export default function MapCanvas({
         const map = new window.google.maps.Map(hostRef.current, {
           center: { lat: center.latitude, lng: center.longitude },
           zoom: 14,
-          styles: darkMapStyle,
+          styles: isDark ? darkMapStyle : lightMapStyle,
           disableDefaultUI: true,
           zoomControl: true,
           clickableIcons: false,
           gestureHandling: 'greedy',
-          backgroundColor: '#111111',
+          backgroundColor: colors.mapBg,
         });
         map.addListener('idle', () => {
           const next = map.getCenter();
@@ -79,6 +85,15 @@ export default function MapCanvas({
     // Map is created once; later pans happen in the center effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-apply map style when theme changes
+  useEffect(() => {
+    if (!mapRef.current) return;
+    mapRef.current.setOptions({
+      styles: isDark ? darkMapStyle : lightMapStyle,
+      backgroundColor: colors.mapBg,
+    });
+  }, [isDark, colors.mapBg]);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -134,7 +149,7 @@ export default function MapCanvas({
   }, [userLocation, ready]);
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, { backgroundColor: colors.mapBg }]}>
       {createElement('div', {
         ref: hostRef,
         style: {
@@ -142,7 +157,7 @@ export default function MapCanvas({
           inset: 0,
           width: '100%',
           height: '100%',
-          backgroundColor: '#111',
+          backgroundColor: colors.mapBg,
         },
       })}
       {error ? (
@@ -160,7 +175,6 @@ export default function MapCanvas({
 const styles = StyleSheet.create({
   wrap: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#111',
   },
   errorBox: {
     position: 'absolute',
