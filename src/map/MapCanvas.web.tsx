@@ -1,0 +1,185 @@
+import { createElement, useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+
+import { categoryMeta } from '@/constants/pins';
+
+import { darkMapStyle } from './darkMapStyle';
+import { loadGoogleMaps } from './loadGoogleMaps.web';
+import type { MapCanvasProps } from './mapTypes';
+import { pinIconSvg } from './pinIcon';
+
+type GoogleMap = {
+  panTo: (latLng: { lat: number; lng: number }) => void;
+  addListener: (event: string, handler: (e: { latLng?: { lat: () => number; lng: () => number } }) => void) => void;
+};
+
+type GoogleMarker = {
+  setMap: (map: GoogleMap | null) => void;
+  addListener: (event: string, handler: () => void) => void;
+};
+
+export default function MapCanvas({
+  pins,
+  center,
+  userLocation,
+  onMapPress,
+  onPinPress,
+}: MapCanvasProps) {
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<GoogleMap | null>(null);
+  const markersRef = useRef<GoogleMarker[]>([]);
+  const userMarkerRef = useRef<GoogleMarker | null>(null);
+  const onMapPressRef = useRef(onMapPress);
+  const onPinPressRef = useRef(onPinPress);
+  const [error, setError] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+
+  onMapPressRef.current = onMapPress;
+  onPinPressRef.current = onPinPress;
+
+  useEffect(() => {
+    let cancelled = false;
+    (window as Window & { gm_authFailure?: () => void }).gm_authFailure = () => {
+      if (!cancelled) {
+        setError(
+          'Maps JavaScript API is not enabled for this key. In Google Cloud, enable Maps JavaScript API (and Places API for search), then wait a minute and refresh.',
+        );
+      }
+    };
+    (async () => {
+      try {
+        await loadGoogleMaps();
+        if (cancelled || !hostRef.current || !window.google) return;
+        const map = new window.google.maps.Map(hostRef.current, {
+          center: { lat: center.latitude, lng: center.longitude },
+          zoom: 14,
+          styles: darkMapStyle,
+          disableDefaultUI: true,
+          zoomControl: true,
+          clickableIcons: false,
+          gestureHandling: 'greedy',
+          backgroundColor: '#111111',
+        });
+        map.addListener('click', (event) => {
+          if (!event.latLng) return;
+          onMapPressRef.current({
+            latitude: event.latLng.lat(),
+            longitude: event.latLng.lng(),
+          });
+        });
+        mapRef.current = map;
+        setReady(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Google Maps failed to load');
+      }
+    })();
+    return () => {
+      cancelled = true;
+      delete (window as Window & { gm_authFailure?: () => void }).gm_authFailure;
+    };
+    // Map is created once; later pans happen in the center effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+    mapRef.current.panTo({ lat: center.latitude, lng: center.longitude });
+  }, [center.latitude, center.longitude]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const google = window.google;
+    if (!ready || !map || !google) return;
+
+    markersRef.current.forEach((marker) => marker.setMap(null));
+    markersRef.current = pins.map((pin) => {
+      const color = categoryMeta(pin.category).color;
+      const marker = new google.maps.Marker({
+        map,
+        position: { lat: pin.latitude, lng: pin.longitude },
+        title: pin.title,
+        icon: {
+          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(pinIconSvg(color))}`,
+          scaledSize: new google.maps.Size(36, 48),
+          anchor: new google.maps.Point(18, 48),
+        },
+      });
+      marker.addListener('click', () => onPinPressRef.current(pin));
+      return marker;
+    });
+
+    return () => {
+      markersRef.current.forEach((marker) => marker.setMap(null));
+      markersRef.current = [];
+    };
+  }, [pins, ready]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const google = window.google;
+    if (!ready || !map || !google) return;
+    userMarkerRef.current?.setMap(null);
+    userMarkerRef.current = null;
+    if (!userLocation) return;
+    userMarkerRef.current = new google.maps.Marker({
+      map,
+      position: { lat: userLocation.latitude, lng: userLocation.longitude },
+      icon: {
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><circle cx="8" cy="8" r="6" fill="#ff3b30" stroke="#fff" stroke-width="2"/></svg>',
+        )}`,
+        scaledSize: new google.maps.Size(16, 16),
+        anchor: new google.maps.Point(8, 8),
+      },
+    });
+  }, [userLocation, ready]);
+
+  return (
+    <View style={styles.wrap}>
+      {createElement('div', {
+        ref: hostRef,
+        style: {
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: '#111',
+        },
+      })}
+      {error ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{error}</Text>
+          <Text style={styles.errorHint}>
+            Enable Maps JavaScript API and Places API, then restart Expo.
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#111',
+  },
+  errorBox: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    top: '40%',
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+  },
+  errorText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  errorHint: {
+    color: '#bbb',
+    fontSize: 14,
+  },
+});
