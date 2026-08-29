@@ -1,7 +1,12 @@
 import * as Location from 'expo-location';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -9,32 +14,28 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
-import Animated, {
-  FadeIn,
-  FadeOut,
-  ZoomIn,
-  ZoomOut,
-} from 'react-native-reanimated';
-import { GlassView } from 'expo-glass-effect';
 
 import { CATEGORIES } from '@/constants/pins';
-import { useAppColors } from '@/hooks/use-app-colors';
 import { getPlaceLocation, searchPlaces } from '@/map/searchPlaces';
-import { useThemeMode } from '@/store/ThemeContext';
+import { loadEventImages } from '@/services/event-images';
 import type { EventPin, LatLng, PinCategory, PlaceHit } from '@/types';
 
 type Props = {
   visible: boolean;
   pin: EventPin | null;
   coord: LatLng | null;
-  anchorBottom: number;
   onClose: () => void;
-  onSave: (pin: Omit<EventPin, 'id'> & { id?: string }) => void;
+  onSave: (
+    pin: Omit<EventPin, 'id'> & { id?: string },
+    photo: ImagePicker.ImagePickerAsset | null,
+  ) => EventPin | Promise<EventPin>;
   onDelete?: () => void;
 };
 
-export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, onDelete }: Props) {
+export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Props) {
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [time, setTime] = useState('');
@@ -43,11 +44,10 @@ export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, o
   const [hits, setHits] = useState<PlaceHit[]>([]);
   const [locateHint, setLocateHint] = useState<string | null>(null);
   const [category, setCategory] = useState<PinCategory>('hangout');
-  const [closing, setClosing] = useState(false);
-  const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const BackdropContainer = (Platform.OS === 'web' ? View : Animated.View) as typeof Animated.View;
-  const { isDark } = useThemeMode();
-  const colors = useAppColors();
+  const [photo, setPhoto] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [storedPhotoUri, setStoredPhotoUri] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const skipNextPlaceSearch = useRef(false);
 
   useEffect(() => {
     if (!visible) return;
@@ -59,18 +59,25 @@ export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, o
     setHits([]);
     setLocateHint(null);
     setCategory(pin?.category ?? 'hangout');
-    setClosing(false);
+    setPhoto(null);
+    setStoredPhotoUri(null);
+    setSaving(false);
   }, [visible, pin, coord]);
 
-  useEffect(
-    () => () => {
-      if (exitTimer.current) clearTimeout(exitTimer.current);
-    },
-    [],
-  );
+  useEffect(() => {
+    if (!visible || !pin) return;
+    loadEventImages()
+      .then((images) => setStoredPhotoUri(images[pin.id]?.at(-1)?.uri ?? null))
+      .catch(() => setStoredPhotoUri(null));
+  }, [visible, pin]);
 
   useEffect(() => {
     const handle = setTimeout(() => {
+      if (skipNextPlaceSearch.current) {
+        skipNextPlaceSearch.current = false;
+        setHits([]);
+        return;
+      }
       if (place.trim().length < 2) {
         setHits([]);
         return;
@@ -85,6 +92,12 @@ export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, o
 
   if (!visible || (!pin && !coord)) return null;
 
+  const photoUri = photo?.uri ?? storedPhotoUri;
+  const heroWidth = Math.min(windowWidth - 40, 920);
+  const heroHeight = pin
+    ? Math.min(Math.round(heroWidth * (9 / 16)), Math.round(windowHeight * 0.36))
+    : 150;
+
   async function useMyLocation() {
     setLocateHint(null);
     const permission = await Location.requestForegroundPermissionsAsync();
@@ -97,60 +110,78 @@ export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, o
       latitude: position.coords.latitude,
       longitude: position.coords.longitude,
     });
+    skipNextPlaceSearch.current = true;
     setPlace('My location');
     setHits([]);
   }
 
-  function exitThen(action: () => void) {
-    if (closing) return;
-    setClosing(true);
-    exitTimer.current = setTimeout(action, 220);
+  async function choosePhoto() {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Photo permission needed', 'Allow photo access to attach an image to this event.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 0.8,
+        base64: Platform.OS === 'web',
+      });
+      if (!result.canceled) setPhoto(result.assets[0]);
+    } catch {
+      Alert.alert('Could not choose photo', 'Please try again.');
+    }
+  }
+
+  async function saveEvent() {
+    if (!title.trim() || !place.trim() || !picked || saving) return;
+    setSaving(true);
+    try {
+      await onSave({
+        id: pin?.id,
+        title: title.trim(),
+        notes: notes.trim(),
+        time: time.trim(),
+        place: place.trim(),
+        category,
+        latitude: picked.latitude,
+        longitude: picked.longitude,
+      }, photo);
+    } catch {
+      Alert.alert('Could not save event', 'Please try again.');
+      setSaving(false);
+    }
   }
 
   return (
-    <View style={[StyleSheet.absoluteFill, { zIndex: 100 }]} pointerEvents="box-none">
-      <BackdropContainer
-        entering={Platform.OS === 'web' ? undefined : FadeIn.duration(320)}
-        exiting={Platform.OS === 'web' ? undefined : FadeOut.duration(220)}
-        style={[
-          StyleSheet.absoluteFill,
-          styles.backdropLayer,
-          { backgroundColor: colors.backdropBg },
-          Platform.OS === 'web' && (closing ? styles.backdropWebExit : styles.backdropWebEnter),
-        ]}>
-        <GlassView glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill}>
-          <Pressable style={styles.backdrop} onPress={() => exitThen(onClose)} />
-        </GlassView>
-      </BackdropContainer>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={[styles.keyboardWrap, { paddingBottom: anchorBottom }]}
-        pointerEvents="box-none">
-        <Animated.View
-          entering={ZoomIn.springify().damping(13).stiffness(190).mass(0.72)}
-          exiting={ZoomOut.duration(170)}
-          style={styles.sheetWrap}>
-          <GlassView glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={[styles.sheet, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
-            <View style={styles.header}>
-              <View>
-                <Text style={[styles.eyebrow, { color: colors.textAccent }]}>{pin ? 'EVENT DETAILS' : 'CREATE EVENT'}</Text>
-                <Text style={[styles.heading, { color: colors.text }]}>{pin ? 'Edit event' : 'New event'}</Text>
-              </View>
-              <Pressable accessibilityLabel="Close" onPress={() => exitThen(onClose)} style={[styles.closeBtn, { backgroundColor: colors.closeBtnBg }]}>
-                <Text style={[styles.closeText, { color: colors.closeIcon }]}>×</Text>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView style={styles.sheet} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
+          <View style={styles.handle} />
+          {(pin || coord) ? (
+            <View style={[styles.eventHeroFrame, { width: heroWidth, height: heroHeight }]}>
+              {photoUri ? (
+                <Image
+                  source={{ uri: photoUri }}
+                  style={styles.eventHeroImage}
+                  contentFit="contain"
+                  transition={180}
+                />
+              ) : <Text style={styles.noPhotoText}>No event photo yet</Text>}
+              <Pressable style={styles.heroEditButton} onPress={() => { choosePhoto().catch(() => {}); }}>
+                <Text style={styles.photoButtonText}>{photoUri ? 'Change photo' : '+ Add photo'}</Text>
               </Pressable>
             </View>
-            <ScrollView
-              bounces={false}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.form}>
+          ) : null}
+          <Text style={styles.heading}>{pin ? 'Edit event' : 'New event'}</Text>
           <TextInput
             value={title}
             onChangeText={setTitle}
             placeholder="Title"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }]}
+            placeholderTextColor="#777"
+            style={styles.input}
           />
           <TextInput
             value={place}
@@ -159,15 +190,15 @@ export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, o
               setPicked(null);
             }}
             placeholder="Location"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }]}
+            placeholderTextColor="#777"
+            style={styles.input}
           />
           {hits.length > 0 ? (
-            <View style={[styles.dropdown, { backgroundColor: colors.dropdownBg }]}>
+            <View style={styles.dropdown}>
               {hits.slice(0, 5).map((hit) => (
                 <Pressable
                   key={hit.placeId}
-                  style={[styles.hit, { borderBottomColor: colors.dropdownBorder }]}
+                  style={styles.hit}
                   onPress={async () => {
                     const result = await getPlaceLocation(hit.placeId);
                     if (!result) return;
@@ -175,7 +206,7 @@ export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, o
                     setPicked(result);
                     setHits([]);
                   }}>
-                  <Text style={[styles.hitText, { color: colors.textSecondary }]}>{hit.description}</Text>
+                  <Text style={styles.hitText}>{hit.description}</Text>
                 </Pressable>
               ))}
             </View>
@@ -184,25 +215,25 @@ export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, o
             onPress={() => {
               useMyLocation().catch(() => setLocateHint('Could not read your location.'));
             }}>
-            <Text style={[styles.useMine, { color: colors.textLink }]}>Use my location</Text>
+            <Text style={styles.useMine}>Use my location</Text>
           </Pressable>
-          {locateHint ? <Text style={[styles.locateHint, { color: colors.errorText }]}>{locateHint}</Text> : null}
+          {locateHint ? <Text style={styles.locateHint}>{locateHint}</Text> : null}
           <TextInput
             value={time}
             onChangeText={setTime}
             placeholder="When (e.g. Sat 6:00pm)"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }]}
+            placeholderTextColor="#777"
+            style={styles.input}
           />
           <TextInput
             value={notes}
             onChangeText={setNotes}
             placeholder="Notes"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.input, styles.notes, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }]}
+            placeholderTextColor="#777"
+            style={[styles.input, styles.notes]}
             multiline
           />
-          <Text style={[styles.label, { color: colors.textMuted }]}>Customize</Text>
+          <Text style={styles.label}>Customize</Text>
           <View style={styles.cats}>
             {CATEGORIES.map((item) => {
               const selected = item.id === category;
@@ -215,179 +246,157 @@ export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, o
                     { borderColor: item.color },
                     selected && { backgroundColor: item.color },
                   ]}>
-                  <View style={[styles.dot, { backgroundColor: selected ? colors.background : item.color }]} />
-                  <Text style={[styles.catText, { color: colors.textSecondary }, selected && { color: colors.background }]}>{item.label}</Text>
+                  <View style={[styles.dot, { backgroundColor: selected ? '#111' : item.color }]} />
+                  <Text style={[styles.catText, selected && { color: '#111' }]}>{item.label}</Text>
                 </Pressable>
               );
             })}
           </View>
           <View style={styles.actions}>
             {pin && onDelete ? (
-              <Pressable style={[styles.deleteBtn, { backgroundColor: colors.deleteBg }]} onPress={() => exitThen(onDelete)}>
-                <Text style={[styles.deleteText, { color: colors.deleteText }]}>Delete</Text>
+              <Pressable style={styles.deleteBtn} onPress={onDelete}>
+                <Text style={styles.deleteText}>Delete</Text>
               </Pressable>
             ) : (
               <View style={styles.flex} />
             )}
             <Pressable
-              style={[styles.saveBtn, { backgroundColor: colors.saveBg }, (!title.trim() || !place.trim() || !picked) && styles.saveDisabled]}
-              onPress={() => {
-                if (!title.trim() || !place.trim() || !picked) return;
-                exitThen(() =>
-                  onSave({
-                    id: pin?.id,
-                    title: title.trim(),
-                    notes: notes.trim(),
-                    time: time.trim(),
-                    place: place.trim(),
-                    category,
-                    latitude: picked.latitude,
-                    longitude: picked.longitude,
-                  }),
-                );
-              }}>
-              <Text style={[styles.saveText, { color: colors.saveText }]}>Save</Text>
+              disabled={saving || !title.trim() || !place.trim() || !picked}
+              style={[styles.saveBtn, (saving || !title.trim() || !place.trim() || !picked) && styles.saveDisabled]}
+              onPress={() => { saveEvent().catch(() => {}); }}>
+              {saving ? <ActivityIndicator color="#111" /> : <Text style={styles.saveText}>Save</Text>}
             </Pressable>
           </View>
-            </ScrollView>
-          </GlassView>
-        </Animated.View>
+        </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  keyboardWrap: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    alignItems: 'flex-start',
-    paddingHorizontal: 18,
-  },
-  sheetWrap: {
-    width: '100%',
-    maxWidth: 520,
-    maxHeight: '86%',
-    transformOrigin: [28, '100%', 0],
-  },
   backdrop: {
     flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  backdropLayer: {
-    ...(Platform.OS === 'web'
-      ? ({
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-        } as object)
-      : null),
-  },
-  backdropWebEnter: {
-    animationKeyframes: {
-      from: {
-        backgroundColor: 'rgba(0,0,0,0)',
-        backdropFilter: 'blur(0px)',
-      },
-      to: {
-        backgroundColor: 'rgba(0,0,0,0.28)',
-        backdropFilter: 'blur(12px)',
-      },
-    },
-    animationDuration: '320ms',
-    animationTimingFunction: 'cubic-bezier(0.05, 0.7, 0.1, 1)',
-    animationFillMode: 'both',
-  } as any,
-  backdropWebExit: {
-    animationKeyframes: {
-      from: {
-        backgroundColor: 'rgba(0,0,0,0.28)',
-        backdropFilter: 'blur(12px)',
-      },
-      to: {
-        backgroundColor: 'rgba(0,0,0,0)',
-        backdropFilter: 'blur(0px)',
-      },
-    },
-    animationDuration: '220ms',
-    animationTimingFunction: 'cubic-bezier(0.3, 0, 0.8, 0.15)',
-    animationFillMode: 'both',
-  } as any,
   sheet: {
-    maxHeight: '100%',
-    paddingHorizontal: 18,
-    paddingBottom: 18,
-    paddingTop: 18,
-    borderRadius: 28,
-    borderWidth: 1,
-    overflow: 'hidden',
+    backgroundColor: '#1c1c1c',
+    maxHeight: Platform.OS === 'web' ? '100%' : '92%',
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-    paddingHorizontal: 2,
+  sheetContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 28,
+    paddingTop: 10,
+    alignItems: 'stretch',
   },
-  eyebrow: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.2,
+  handle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#444',
+    marginBottom: 14,
   },
   heading: {
-    fontSize: 24,
+    color: '#fff',
+    fontSize: 20,
     fontWeight: '700',
-    marginTop: 2,
+    marginBottom: 14,
   },
-  closeBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  eventHeroFrame: {
+    alignSelf: 'center',
+    borderRadius: 16,
+    backgroundColor: '#111',
+    overflow: 'hidden',
+    marginBottom: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeText: {
-    fontSize: 26,
-    lineHeight: 28,
-    fontWeight: '300',
+  eventHeroImage: {
+    width: '100%',
+    height: '100%',
   },
-  form: {
-    paddingBottom: 2,
-  },
-  input: {
-    borderRadius: 16,
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    marginBottom: 12,
+  noPhotoText: {
+    color: '#9AA5B5',
     fontSize: 15,
   },
+  heroEditButton: {
+    position: 'absolute',
+    right: 14,
+    bottom: 14,
+    borderWidth: 1,
+    borderColor: '#8ab4ff',
+    borderRadius: 10,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(17,17,17,0.88)',
+  },
+  input: {
+    backgroundColor: '#2a2a2a',
+    color: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
+    fontSize: 16,
+  },
   notes: {
-    minHeight: 80,
+    minHeight: 72,
     textAlignVertical: 'top',
   },
   dropdown: {
-    marginTop: -8,
+    marginTop: -6,
     marginBottom: 10,
     borderRadius: 12,
     overflow: 'hidden',
+    backgroundColor: '#2a2a2a',
   },
   hit: {
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#3a3a3a',
   },
   hitText: {
+    color: '#eee',
     fontSize: 14,
   },
   useMine: {
-    marginBottom: 12,
-    marginLeft: 4,
+    color: '#8ab4ff',
+    marginBottom: 10,
     fontSize: 14,
   },
   locateHint: {
+    color: '#ffb4b4',
     marginBottom: 10,
     fontSize: 13,
   },
+  photoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 14,
+  },
+  photoPreview: {
+    width: 72,
+    height: 54,
+    borderRadius: 10,
+    backgroundColor: '#2a2a2a',
+  },
+  photoButton: {
+    borderWidth: 1,
+    borderColor: '#8ab4ff',
+    borderRadius: 10,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+  },
+  photoButtonText: {
+    color: '#8ab4ff',
+    fontWeight: '600',
+  },
   label: {
+    color: '#aaa',
     marginBottom: 8,
     marginTop: 4,
   },
@@ -402,11 +411,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 11,
-    paddingVertical: 8,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
   },
   catText: {
+    color: '#eee',
     fontSize: 13,
   },
   dot: {
@@ -417,8 +427,7 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginTop: 4,
+    gap: 12,
   },
   flex: {
     flex: 1,
@@ -426,22 +435,26 @@ const styles = StyleSheet.create({
   deleteBtn: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 16,
+    borderRadius: 12,
+    backgroundColor: '#3a1515',
     alignItems: 'center',
   },
   deleteText: {
+    color: '#ff6b6b',
     fontWeight: '600',
   },
   saveBtn: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 16,
+    borderRadius: 12,
+    backgroundColor: '#fff',
     alignItems: 'center',
   },
   saveDisabled: {
     opacity: 0.4,
   },
   saveText: {
+    color: '#111',
     fontWeight: '700',
   },
 });
