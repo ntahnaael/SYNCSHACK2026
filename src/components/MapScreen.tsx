@@ -30,9 +30,10 @@ import { usePins } from '@/store/PinsContext';
 import { useProfile } from '@/store/ProfileContext';
 import { useThemeMode } from '@/store/ThemeContext';
 import { canSeePin } from '@/sync/liveTypes';
-import type { EventPin, LatLng, PinCategory } from '@/types';
+import type { EventPin, Friend, LatLng, PinCategory } from '@/types';
 
 import { CategoryLegend } from './CategoryLegend';
+import { FriendProfileSheet } from './FriendProfileSheet';
 import { PinSheet } from './PinSheet';
 import { ProfileSheet } from './ProfileSheet';
 import { SearchBar } from './SearchBar';
@@ -69,6 +70,7 @@ export function MapScreen() {
   const [legendOpen, setLegendOpen] = useState(false);
   const [locateError, setLocateError] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [viewedFriend, setViewedFriend] = useState<Friend | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [trail, setTrail] = useState<LatLng[]>([]);
@@ -102,13 +104,27 @@ export function MapScreen() {
         })),
     [members, friendIds],
   );
-  const visiblePins = useMemo(
-    () => pins.filter((pin) =>
-      canSeePin(pin, profile.id, friendIds) &&
-      (selectedCategory === null || pin.category === selectedCategory),
-    ),
-    [pins, profile.id, friendIds, selectedCategory],
+  const viewablePins = useMemo(
+    () => pins.filter((pin) => canSeePin(pin, profile.id, friendIds)),
+    [pins, profile.id, friendIds],
   );
+  const visiblePins = useMemo(
+    () =>
+      selectedCategory === null
+        ? viewablePins
+        : viewablePins.filter((pin) => pin.category === selectedCategory),
+    [viewablePins, selectedCategory],
+  );
+  const friendEvents = useMemo(() => {
+    if (!viewedFriend) return { hosting: [] as EventPin[], going: [] as EventPin[] };
+    return {
+      hosting: viewablePins.filter((pin) => pin.createdById === viewedFriend.id),
+      going: viewablePins.filter(
+        (pin) =>
+          pin.createdById !== viewedFriend.id && pin.going.some((guest) => guest.id === viewedFriend.id),
+      ),
+    };
+  }, [viewedFriend, viewablePins]);
   const isOwner = !selected || !selected.createdById || selected.createdById === profile.id;
   const trailStorageKey = `${TRAIL_STORAGE_PREFIX}.${profile.id}`;
 
@@ -121,7 +137,7 @@ export function MapScreen() {
 
   useEffect(() => {
     if (!selected) return;
-    const next = visiblePins.find((pin) => pin.id === selected.id);
+    const next = viewablePins.find((pin) => pin.id === selected.id);
     if (!next) {
       setSelected(null);
       return;
@@ -130,7 +146,7 @@ export function MapScreen() {
       if (!current || current.id !== next.id) return next;
       return { ...current, going: next.going, visibility: next.visibility };
     });
-  }, [visiblePins, selected?.id]);
+  }, [viewablePins, selected?.id]);
 
   useEffect(() => {
     if (!profileReady) return;
@@ -516,6 +532,7 @@ export function MapScreen() {
         onRemoveFriend={(id) => {
           removeFriend(id).catch(() => {});
         }}
+        onOpenFriend={setViewedFriend}
         onClose={() => setProfileOpen(false)}
         onSave={saveProfile}
         onLogout={() => {
@@ -524,6 +541,24 @@ export function MapScreen() {
           signOut().catch(() => {});
         }}
         onResetTerritory={resetTerritory}
+      />
+      <FriendProfileSheet
+        friend={viewedFriend}
+        hosting={friendEvents.hosting}
+        going={friendEvents.going}
+        isLive={Boolean(viewedFriend && members.some((member) => member.id === viewedFriend.id))}
+        onSelectEvent={(pin) => {
+          setViewedFriend(null);
+          setProfileOpen(false);
+          setDraft(null);
+          setCenter({ latitude: pin.latitude, longitude: pin.longitude });
+          setViewCenter({ latitude: pin.latitude, longitude: pin.longitude });
+          setSelected(pin);
+        }}
+        onRemoveFriend={(id) => {
+          removeFriend(id).catch(() => {});
+        }}
+        onClose={() => setViewedFriend(null)}
       />
       <PinSheet
         visible={sheetOpen}

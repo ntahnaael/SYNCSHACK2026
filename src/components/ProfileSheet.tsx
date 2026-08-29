@@ -25,6 +25,7 @@ type Props = {
   friendError: string | null;
   onAddFriend: (code: string) => void;
   onRemoveFriend: (id: string) => void;
+  onOpenFriend: (friend: Friend) => void;
   onClose: () => void;
   onSave: (input: Pick<UserProfile, 'displayName' | 'color'>) => void;
   onLogout: () => void;
@@ -39,6 +40,7 @@ export function ProfileSheet({
   friendError,
   onAddFriend,
   onRemoveFriend,
+  onOpenFriend,
   onClose,
   onSave,
   onLogout,
@@ -191,13 +193,24 @@ export function ProfileSheet({
             <Text style={[styles.joinText, { color: colors.text }]}>Add friend</Text>
           </Pressable>
           {friends.map((friend) => (
-            <View key={friend.id} style={styles.friendRow}>
+            <Pressable
+              key={friend.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${friend.displayName || friend.shareCode}’s profile`}
+              onPress={() => onOpenFriend(friend)}
+              style={({ pressed }) => [styles.friendRow, pressed && styles.friendRowPressed]}>
               <View style={[styles.friendDot, { backgroundColor: friend.color }]} />
               <Text style={[styles.friendName, { color: colors.textSecondary }]}>{friend.displayName || friend.shareCode}</Text>
-              <Pressable onPress={() => onRemoveFriend(friend.id)}>
+              <Pressable
+                hitSlop={8}
+                onPress={(event) => {
+                  event.stopPropagation();
+                  onRemoveFriend(friend.id);
+                }}>
                 <Text style={[styles.removeFriend, { color: colors.deleteText }]}>Remove</Text>
               </Pressable>
-            </View>
+              <Text style={[styles.friendChevron, { color: colors.textMuted }]}>›</Text>
+            </Pressable>
           ))}
           <Pressable
             style={[styles.saveBtn, { backgroundColor: colors.saveBg }]}
@@ -395,6 +408,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     marginBottom: 10,
+    paddingVertical: 4,
+  },
+  friendRowPressed: {
+    opacity: 0.6,
+  },
+  friendChevron: {
+    fontSize: 20,
+    fontWeight: '600',
+    lineHeight: 22,
   },
   friendDot: {
     width: 12,
