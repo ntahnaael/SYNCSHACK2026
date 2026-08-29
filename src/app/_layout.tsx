@@ -3,6 +3,8 @@ import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
 import { PaperProvider, MD3DarkTheme, MD3LightTheme } from 'react-native-paper';
 
+import '@/global.css';
+
 import { BrandSplash } from '@/components/BrandSplash';
 import { PinsProvider } from '@/store/PinsContext';
 import { ThemeProvider, useThemeMode } from '@/store/ThemeContext';

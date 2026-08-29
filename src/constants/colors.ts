@@ -36,6 +36,7 @@ const palette = {
 
     // FAB / buttons
     fabBg: '#6750a4',
+    fabIcon: '#e8e1f4',
     saveBg: '#d0bcff',
     saveText: '#21183a',
     deleteBg: '#3a1515',
@@ -45,6 +46,7 @@ const palette = {
 
     // Pin
     pinBorder: '#0E0E0E',
+    pinCenter: '#0E0E0E',
 
     // Misc
     errorText: '#ffb4b4',
@@ -85,6 +87,7 @@ const palette = {
 
     // FAB / buttons
     fabBg: '#6750a4',
+    fabIcon: '#ffffff',
     saveBg: '#6750a4',
     saveText: '#ffffff',
     deleteBg: '#fce4e4',
@@ -94,6 +97,7 @@ const palette = {
 
     // Pin
     pinBorder: '#ffffff',
+    pinCenter: '#ffffff',
 
     // Misc
     errorText: '#d32f2f',
