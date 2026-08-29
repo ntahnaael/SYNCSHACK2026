@@ -39,7 +39,8 @@ export function SearchBar({ onSelect, onExpandedChange }: Props) {
   const inputRef = useRef<TextInput>(null);
   const barWidth = useSharedValue(56);
   // Leave room for the profile button and the fixed upper-right voxel logo.
-  const expandedWidth = Math.max(56, Math.min(windowWidth - 216, 560));
+  const logoRightInset = windowWidth < 800 ? 40 : 25;
+  const expandedWidth = Math.max(56, Math.min(windowWidth - 210 - logoRightInset, 560));
   const colors = useAppColors();
   const { isDark } = useThemeMode();
 
