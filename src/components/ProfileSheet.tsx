@@ -65,7 +65,7 @@ export function ProfileSheet({
   }
 
   return (
-    <PixelBottomSheet visible={visible} onDismiss={saveAndClose} origin="top-left" zIndex={110}>
+    <PixelBottomSheet visible={visible} onDismiss={onClose} origin="top-left" zIndex={110}>
       <View style={styles.sheet}>
           <View style={styles.header}>
             <View>
@@ -76,7 +76,7 @@ export function ProfileSheet({
               accessibilityLabel="Close profile"
               onPress={() => {
                 hapticTap();
-                saveAndClose();
+                onClose();
               }}
               style={({ pressed }) => [
                 styles.closeBtn,
