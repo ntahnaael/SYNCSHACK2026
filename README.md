@@ -28,3 +28,7 @@ npm run web
 ```
 
 The local backend writes pins to `data/pins.json` and photos to `data/event-images/`. Then press `w` for web, `a` for Android, or scan the QR code with Expo Go on a phone. iOS Google Maps needs a development build; Expo Go on iPhone uses Apple Maps.
+
+
+What you're running:
+This application is authentiCITY, our solution to bringing people (the building blocks of our community) together. It's a social app that helps users find public and private events around them. It also includes features such as our territory capture, that encourages people to get outside, and go for walks/runs.
