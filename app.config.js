@@ -54,6 +54,12 @@ export default {
           locationWhenInUsePermission: 'Show your location on the map.',
         },
       ],
+      [
+        'expo-image-picker',
+        {
+          photosPermission: 'Allow SYNCSHACK to attach photos to events.',
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true,

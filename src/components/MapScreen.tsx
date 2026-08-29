@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SYDNEY } from '@/constants/pins';
 import { GOOGLE_MAPS_API_KEY } from '@/lib/googleKey';
 import MapCanvas from '@/map/MapCanvas';
+import { saveEventImage } from '@/services/event-images';
 import { usePins } from '@/store/PinsContext';
 import type { EventPin, LatLng } from '@/types';
 
@@ -98,16 +99,21 @@ export function MapScreen() {
           setSelected(null);
           setDraft(null);
         }}
-        onSave={(input) => {
+        onSave={async (input, photo) => {
+          let savedPin: EventPin;
           if (input.id) {
-            updatePin(input as EventPin);
+            savedPin = input as EventPin;
+            updatePin(savedPin);
           } else {
-            addPin(input);
+            const { id: _id, ...newPin } = input;
+            savedPin = addPin(newPin);
           }
-          setCenter({ latitude: input.latitude, longitude: input.longitude });
-          setViewCenter({ latitude: input.latitude, longitude: input.longitude });
+          setCenter({ latitude: savedPin.latitude, longitude: savedPin.longitude });
+          setViewCenter({ latitude: savedPin.latitude, longitude: savedPin.longitude });
+          if (photo) await saveEventImage(savedPin.id, photo.uri, photo.base64);
           setSelected(null);
           setDraft(null);
+          return savedPin;
         }}
         onDelete={
           selected
