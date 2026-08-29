@@ -234,6 +234,7 @@ export function MapScreen() {
       />
       <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
         <Pressable
+          accessibilityLabel="Open profile"
           style={[styles.profileBtn, { backgroundColor: profile.color }]}
           onPress={() => setProfileOpen(true)}>
           <Text style={styles.profileInitials}>{initials}</Text>

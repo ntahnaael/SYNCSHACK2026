@@ -74,6 +74,13 @@ export function ProfileSheet({
     exitTimer.current = setTimeout(action, 220);
   }
 
+  function saveAndClose() {
+    exitThen(() => {
+      onSave({ displayName, color });
+      onClose();
+    });
+  }
+
   return (
     <View style={[StyleSheet.absoluteFill, { zIndex: 110 }]} pointerEvents="box-none">
       <BackdropContainer
@@ -86,7 +93,7 @@ export function ProfileSheet({
           Platform.OS === 'web' && (closing ? styles.backdropWebExit : styles.backdropWebEnter),
         ]}>
         <GlassView glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill}>
-          <Pressable style={styles.backdrop} onPress={() => exitThen(onClose)} />
+          <Pressable style={styles.backdrop} onPress={saveAndClose} />
         </GlassView>
       </BackdropContainer>
       <KeyboardAvoidingView
@@ -108,7 +115,7 @@ export function ProfileSheet({
             </View>
             <Pressable
               accessibilityLabel="Close profile"
-              onPress={() => exitThen(onClose)}
+              onPress={saveAndClose}
               style={[styles.closeBtn, { backgroundColor: colors.closeBtnBg }]}>
               <Text style={[styles.closeText, { color: colors.closeIcon }]}>×</Text>
             </Pressable>
@@ -138,6 +145,8 @@ export function ProfileSheet({
               return (
                 <Pressable
                   key={item}
+                  accessibilityLabel={`Select profile color ${item}`}
+                  accessibilityState={{ selected }}
                   onPress={() => setColor(item)}
                   style={[
                     styles.swatch,
@@ -190,10 +199,7 @@ export function ProfileSheet({
           ))}
           <Pressable
             style={styles.saveBtn}
-            onPress={() => {
-              onSave({ displayName, color });
-              exitThen(onClose);
-            }}>
+            onPress={saveAndClose}>
             <Text style={styles.saveText}>Save</Text>
           </Pressable>
           <Pressable
