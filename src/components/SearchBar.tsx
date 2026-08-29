@@ -149,9 +149,6 @@ export function SearchBar({ onSelect }: Props) {
 
 const styles = StyleSheet.create({
   wrap: {
-    position: 'absolute',
-    top: 16,
-    left: 16,
     zIndex: 20,
   },
   bar: {

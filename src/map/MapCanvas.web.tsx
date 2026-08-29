@@ -9,7 +9,7 @@ import { darkMapStyle } from './darkMapStyle';
 import { lightMapStyle } from './lightMapStyle';
 import { loadGoogleMaps } from './loadGoogleMaps.web';
 import type { MapCanvasProps } from './mapTypes';
-import { pinIconSvg } from './pinIcon';
+import { pinIconSvg, userMarkerSvg } from './pinIcon';
 
 type GoogleMap = {
   panTo: (latLng: { lat: number; lng: number }) => void;
@@ -27,6 +27,9 @@ export default function MapCanvas({
   pins,
   center,
   userLocation,
+  userColor,
+  userInitials,
+  friends = [],
   onViewChange,
   onPinPress,
 }: MapCanvasProps) {
@@ -34,6 +37,7 @@ export default function MapCanvas({
   const mapRef = useRef<GoogleMap | null>(null);
   const markersRef = useRef<GoogleMarker[]>([]);
   const userMarkerRef = useRef<GoogleMarker | null>(null);
+  const friendMarkersRef = useRef<GoogleMarker[]>([]);
   const onViewChangeRef = useRef(onViewChange);
   const onPinPressRef = useRef(onPinPress);
   const [error, setError] = useState<string | null>(null);
@@ -139,14 +143,36 @@ export default function MapCanvas({
       map,
       position: { lat: userLocation.latitude, lng: userLocation.longitude },
       icon: {
-        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
-          '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><circle cx="8" cy="8" r="6" fill="#ff3b30" stroke="#fff" stroke-width="2"/></svg>',
-        )}`,
-        scaledSize: new google.maps.Size(16, 16),
-        anchor: new google.maps.Point(8, 8),
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(userMarkerSvg(userColor, userInitials))}`,
+        scaledSize: new google.maps.Size(36, 36),
+        anchor: new google.maps.Point(18, 18),
       },
     });
-  }, [userLocation, ready]);
+  }, [userLocation, userColor, userInitials, ready]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const google = window.google;
+    if (!ready || !map || !google) return;
+    friendMarkersRef.current.forEach((marker) => marker.setMap(null));
+    friendMarkersRef.current = friends.map((friend) => {
+      const marker = new google.maps.Marker({
+        map,
+        position: { lat: friend.latitude, lng: friend.longitude },
+        title: friend.name || 'Friend',
+        icon: {
+          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(userMarkerSvg(friend.color, friend.initials))}`,
+          scaledSize: new google.maps.Size(32, 36),
+          anchor: new google.maps.Point(16, 18),
+        },
+      });
+      return marker;
+    });
+    return () => {
+      friendMarkersRef.current.forEach((marker) => marker.setMap(null));
+      friendMarkersRef.current = [];
+    };
+  }, [friends, ready]);
 
   return (
     <View style={[styles.wrap, { backgroundColor: colors.mapBg }]}>

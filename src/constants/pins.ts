@@ -33,6 +33,8 @@ export const SEED_PINS: EventPin[] = [
     longitude: 151.2153,
     category: 'landmark',
     time: 'Sat 6:00pm',
+    visibility: 'public',
+    going: [],
   },
   {
     id: 'seed-garden',
@@ -43,6 +45,8 @@ export const SEED_PINS: EventPin[] = [
     longitude: 151.2166,
     category: 'nature',
     time: 'Sun 12:00pm',
+    visibility: 'public',
+    going: [],
   },
   {
     id: 'seed-darling',
@@ -53,6 +57,8 @@ export const SEED_PINS: EventPin[] = [
     longitude: 151.1985,
     category: 'hangout',
     time: 'Fri 7:30pm',
+    visibility: 'public',
+    going: [],
   },
   {
     id: 'seed-oxford',
@@ -63,6 +69,8 @@ export const SEED_PINS: EventPin[] = [
     longitude: 151.2156,
     category: 'nightlife',
     time: 'Fri 9:00pm',
+    visibility: 'public',
+    going: [],
   },
   {
     id: 'seed-rocks',
@@ -73,6 +81,8 @@ export const SEED_PINS: EventPin[] = [
     longitude: 151.2089,
     category: 'landmark',
     time: 'Sat 10:00am',
+    visibility: 'public',
+    going: [],
   },
   {
     id: 'seed-surry',
@@ -83,5 +93,7 @@ export const SEED_PINS: EventPin[] = [
     longitude: 151.211,
     category: 'hangout',
     time: 'Sat 11:00am',
+    visibility: 'public',
+    going: [],
   },
 ];

@@ -28,22 +28,38 @@ import { useAppColors } from '@/hooks/use-app-colors';
 import { getPlaceLocation, searchPlaces } from '@/map/searchPlaces';
 import { loadEventImages } from '@/services/event-images';
 import { useThemeMode } from '@/store/ThemeContext';
-import type { EventPin, LatLng, PinCategory, PlaceHit } from '@/types';
+import type { EventPin, EventVisibility, LatLng, PinCategory, PlaceHit } from '@/types';
 
 type Props = {
   visible: boolean;
   pin: EventPin | null;
   coord: LatLng | null;
   anchorBottom: number;
+  isOwner: boolean;
+  viewerId: string;
+  viewerName: string;
   onClose: () => void;
   onSave: (
     pin: Omit<EventPin, 'id'> & { id?: string },
     photo: ImagePicker.ImagePickerAsset | null,
   ) => EventPin | Promise<EventPin>;
   onDelete?: () => void;
+  onGoing?: (going: boolean) => void;
 };
 
-export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, onDelete }: Props) {
+export function PinSheet({
+  visible,
+  pin,
+  coord,
+  anchorBottom,
+  isOwner,
+  viewerId,
+  viewerName,
+  onClose,
+  onSave,
+  onDelete,
+  onGoing,
+}: Props) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
@@ -53,6 +69,7 @@ export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, o
   const [hits, setHits] = useState<PlaceHit[]>([]);
   const [locateHint, setLocateHint] = useState<string | null>(null);
   const [category, setCategory] = useState<PinCategory>('hangout');
+  const [visibility, setVisibility] = useState<EventVisibility>('public');
   const [photo, setPhoto] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [storedPhotoUri, setStoredPhotoUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -73,11 +90,12 @@ export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, o
     setHits([]);
     setLocateHint(null);
     setCategory(pin?.category ?? 'hangout');
+    setVisibility(pin?.visibility ?? 'public');
     setPhoto(null);
     setStoredPhotoUri(null);
     setSaving(false);
     setClosing(false);
-  }, [visible, pin, coord]);
+  }, [visible, pin?.id, coord]);
 
   useEffect(
     () => () => {
@@ -119,6 +137,9 @@ export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, o
   const heroHeight = pin
     ? Math.min(Math.round(heroWidth * (9 / 16)), Math.round(windowHeight * 0.36))
     : 150;
+  const going = pin?.going ?? [];
+  const isGoing = going.some((guest) => guest.id === viewerId);
+  const canEdit = isOwner || !pin;
 
   async function useMyLocation() {
     setLocateHint(null);
@@ -169,6 +190,12 @@ export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, o
         category,
         latitude: picked.latitude,
         longitude: picked.longitude,
+        visibility,
+        going: (() => {
+          const host = { id: viewerId, name: viewerName };
+          const existing = pin?.going ?? [];
+          return existing.some((guest) => guest.id === viewerId) ? existing : [...existing, host];
+        })(),
       }, photo);
     } catch {
       Alert.alert('Could not save event', 'Please try again.');
@@ -209,7 +236,15 @@ export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, o
             <View style={styles.header}>
               <View>
                 <Text style={[styles.eyebrow, { color: colors.textAccent }]}>{pin ? 'EVENT DETAILS' : 'CREATE EVENT'}</Text>
-                <Text style={[styles.heading, { color: colors.text }]}>{pin ? 'Edit event' : 'New event'}</Text>
+                <Text style={[styles.heading, { color: colors.text }]}>
+                  {pin ? (canEdit ? 'Edit event' : pin.title) : 'New event'}
+                </Text>
+                {pin?.createdByName ? (
+                  <Text style={[styles.useMine, { color: colors.textMuted, marginBottom: 0 }]}>
+                    Hosted by {pin.createdByName}
+                    {pin.visibility === 'private' ? ' · Friends only' : ' · Public'}
+                  </Text>
+                ) : null}
               </View>
               <Pressable accessibilityLabel="Close" onPress={() => exitThen(onClose)} style={[styles.closeBtn, { backgroundColor: colors.closeBtnBg }]}>
                 <Text style={[styles.closeText, { color: colors.closeIcon }]}>×</Text>
@@ -230,13 +265,17 @@ export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, o
                       transition={180}
                     />
                   ) : <Text style={[styles.noPhotoText, { color: colors.textMuted }]}>No event photo yet</Text>}
-                  <Pressable
-                    style={styles.heroEditButton}
-                    onPress={() => { choosePhoto().catch(() => {}); }}>
-                    <Text style={styles.photoButtonText}>{photoUri ? 'Change photo' : '+ Add photo'}</Text>
-                  </Pressable>
+                  {canEdit ? (
+                    <Pressable
+                      style={styles.heroEditButton}
+                      onPress={() => { choosePhoto().catch(() => {}); }}>
+                      <Text style={styles.photoButtonText}>{photoUri ? 'Change photo' : '+ Add photo'}</Text>
+                    </Pressable>
+                  ) : null}
                 </View>
               ) : null}
+          {canEdit ? (
+            <>
           <TextInput
             value={title}
             onChangeText={setTitle}
@@ -294,6 +333,36 @@ export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, o
             style={[styles.input, styles.notes, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }]}
             multiline
           />
+          <Text style={[styles.label, { color: colors.textMuted }]}>Who can see this</Text>
+          <View style={styles.cats}>
+            <Pressable
+              onPress={() => setVisibility('public')}
+              style={[
+                styles.cat,
+                { borderColor: colors.inputBorder },
+                visibility === 'public' && { backgroundColor: colors.saveBg, borderColor: colors.saveBg },
+              ]}>
+              <Text style={[styles.catText, { color: colors.textSecondary }, visibility === 'public' && { color: colors.saveText }]}>
+                Public
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setVisibility('private')}
+              style={[
+                styles.cat,
+                { borderColor: colors.inputBorder },
+                visibility === 'private' && { backgroundColor: colors.saveBg, borderColor: colors.saveBg },
+              ]}>
+              <Text style={[styles.catText, { color: colors.textSecondary }, visibility === 'private' && { color: colors.saveText }]}>
+                Friends only
+              </Text>
+            </Pressable>
+          </View>
+          <Text style={[styles.visHint, { color: colors.textMuted }]}>
+            {visibility === 'private'
+              ? 'Only people on your friends list can see this pin.'
+              : 'Anyone using the app can see this pin.'}
+          </Text>
           <Text style={[styles.label, { color: colors.textMuted }]}>Customize</Text>
           <View style={styles.cats}>
             {CATEGORIES.map((item) => {
@@ -313,6 +382,31 @@ export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, o
               );
             })}
           </View>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.detail, { color: colors.text }]}>{pin?.place}</Text>
+              {pin?.time ? <Text style={[styles.muted, { color: colors.textMuted }]}>{pin.time}</Text> : null}
+              {pin?.notes ? <Text style={[styles.notesRead, { color: colors.textSecondary }]}>{pin.notes}</Text> : null}
+            </>
+          )}
+          {pin ? (
+            <>
+              <Text style={[styles.label, { color: colors.textMuted }]}>Going ({going.length})</Text>
+              {going.length === 0 ? (
+                <Text style={[styles.muted, { color: colors.textMuted }]}>No one has opted in yet.</Text>
+              ) : (
+                going.map((guest) => (
+                  <Text key={guest.id} style={[styles.guest, { color: colors.textSecondary }]}>
+                    {guest.name || 'Someone'}
+                    {guest.id === pin.createdById ? ' · host' : ''}
+                    {guest.id === viewerId ? ' · you' : ''}
+                  </Text>
+                ))
+              )}
+            </>
+          ) : null}
+          {canEdit ? (
           <View style={styles.actions}>
             {pin && onDelete ? (
               <Pressable style={[styles.deleteBtn, { backgroundColor: colors.deleteBg }]} onPress={() => exitThen(onDelete)}>
@@ -336,6 +430,17 @@ export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, o
               )}
             </Pressable>
           </View>
+          ) : (
+            <View style={styles.actions}>
+              <Pressable
+                style={[styles.rsvpBtn, { backgroundColor: colors.saveBg }, isGoing && styles.rsvpOn]}
+                onPress={() => onGoing?.(!isGoing)}>
+                <Text style={[styles.rsvpText, { color: colors.saveText }, isGoing && styles.rsvpTextOn]}>
+                  {isGoing ? 'Not going' : "I'm going"}
+                </Text>
+              </Pressable>
+            </View>
+          )}
             </ScrollView>
           </GlassView>
         </Animated.View>
@@ -581,5 +686,41 @@ const styles = StyleSheet.create({
   },
   saveText: {
     fontWeight: '700',
+  },
+  visHint: {
+    fontSize: 12,
+    marginBottom: 12,
+  },
+  detail: {
+    fontSize: 16,
+    marginBottom: 6,
+  },
+  muted: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  notesRead: {
+    fontSize: 15,
+    lineHeight: 21,
+    marginBottom: 12,
+  },
+  guest: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  rsvpBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  rsvpOn: {
+    backgroundColor: '#2a2a2a',
+  },
+  rsvpText: {
+    fontWeight: '700',
+  },
+  rsvpTextOn: {
+    color: '#fff',
   },
 });
