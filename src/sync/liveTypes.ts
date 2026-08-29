@@ -1,4 +1,4 @@
-import type { EventPin, UserProfile } from '@/types';
+import type { EventGuest, EventPin, EventVisibility, UserProfile } from '@/types';
 
 export const MEMBER_STALE_MS = 90_000;
 
@@ -17,6 +17,29 @@ export function normalizeRoomCode(value: string) {
 
 export function isValidRoomCode(value: string) {
   return /^[A-Z0-9]{4,8}$/.test(value);
+}
+
+export function parseGoing(raw: unknown): EventGuest[] {
+  if (!Array.isArray(raw)) return [];
+  const guests: EventGuest[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as { id?: unknown; name?: unknown };
+    const id = String(row.id ?? '');
+    if (!id) continue;
+    guests.push({ id, name: String(row.name ?? '') });
+  }
+  return guests;
+}
+
+export function parseVisibility(raw: unknown): EventVisibility {
+  return raw === 'private' ? 'private' : 'public';
+}
+
+export function canSeePin(pin: EventPin, userId: string, friendIds: Set<string>) {
+  if (pin.visibility !== 'private') return true;
+  if (!pin.createdById || pin.createdById === userId) return true;
+  return friendIds.has(pin.createdById);
 }
 
 export function pinFromDoc(id: string, data: Record<string, unknown>): EventPin | null {
@@ -39,6 +62,8 @@ export function pinFromDoc(id: string, data: Record<string, unknown>): EventPin 
     createdById: String(data.createdById ?? ''),
     createdByName: String(data.createdByName ?? ''),
     createdByColor: String(data.createdByColor ?? ''),
+    visibility: parseVisibility(data.visibility),
+    going: parseGoing(data.going),
   };
 }
 
@@ -54,6 +79,8 @@ export function pinToDoc(pin: EventPin) {
     createdById: pin.createdById ?? '',
     createdByName: pin.createdByName ?? '',
     createdByColor: pin.createdByColor ?? '',
+    visibility: pin.visibility ?? 'public',
+    going: pin.going ?? [],
   };
 }
 

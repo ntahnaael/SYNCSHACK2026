@@ -4,6 +4,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -11,15 +12,16 @@ import {
 } from 'react-native';
 
 import { PROFILE_COLORS, profileInitials } from '@/constants/profile';
-import type { UserProfile } from '@/types';
+import type { Friend, UserProfile } from '@/types';
 
 type Props = {
   visible: boolean;
   profile: UserProfile;
-  roomCode: string;
   liveEnabled: boolean;
-  joinError: string | null;
-  onJoin: (code: string) => void;
+  friends: Friend[];
+  friendError: string | null;
+  onAddFriend: (code: string) => void;
+  onRemoveFriend: (id: string) => void;
   onClose: () => void;
   onSave: (input: Pick<UserProfile, 'displayName' | 'color'>) => void;
   onLogout: () => void;
@@ -28,23 +30,24 @@ type Props = {
 export function ProfileSheet({
   visible,
   profile,
-  roomCode,
   liveEnabled,
-  joinError,
-  onJoin,
+  friends,
+  friendError,
+  onAddFriend,
+  onRemoveFriend,
   onClose,
   onSave,
   onLogout,
 }: Props) {
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [color, setColor] = useState(profile.color);
-  const [joinCode, setJoinCode] = useState('');
+  const [friendCode, setFriendCode] = useState('');
 
   useEffect(() => {
     if (!visible) return;
     setDisplayName(profile.displayName);
     setColor(profile.color);
-    setJoinCode('');
+    setFriendCode('');
   }, [visible, profile]);
 
   return (
@@ -53,6 +56,7 @@ export function ProfileSheet({
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.sheet}>
           <View style={styles.handle} />
+          <ScrollView keyboardShouldPersistTaps="handled">
           <Text style={styles.heading}>Your profile</Text>
           <View style={styles.previewRow}>
             <View style={[styles.avatar, { backgroundColor: color }]}>
@@ -85,33 +89,46 @@ export function ProfileSheet({
               );
             })}
           </View>
-          <Text style={styles.label}>Map code</Text>
+          <Text style={styles.label}>Your friend code</Text>
           <View style={styles.codeBox}>
-            <Text style={styles.code}>{roomCode || profile.shareCode}</Text>
+            <Text style={styles.code}>{profile.shareCode}</Text>
           </View>
           <Text style={styles.codeHint}>
             {liveEnabled
-              ? 'Friends enter this code to see your live events and location.'
-              : 'Add Firebase keys in .env to sync live events and location.'}
+              ? 'Friends add this code to see your private events and live location. Public events are open to everyone.'
+              : 'Add Firebase keys in .env to sync friends, events, and location.'}
+          </Text>
+          <Text style={styles.label}>Friends</Text>
+          <Text style={styles.codeHint}>
+            Add people by their friend code. You’ll see their private pins; everyone sees public pins.
           </Text>
           <TextInput
-            value={joinCode}
-            onChangeText={setJoinCode}
-            placeholder="Join a map code"
+            value={friendCode}
+            onChangeText={setFriendCode}
+            placeholder="Add a friend by code"
             placeholderTextColor="#777"
             style={styles.input}
             autoCapitalize="characters"
             autoCorrect={false}
           />
-          {joinError ? <Text style={styles.joinError}>{joinError}</Text> : null}
+          {friendError ? <Text style={styles.joinError}>{friendError}</Text> : null}
           <Pressable
             style={styles.joinBtn}
             onPress={() => {
-              onJoin(joinCode);
-              setJoinCode('');
+              onAddFriend(friendCode);
+              setFriendCode('');
             }}>
-            <Text style={styles.joinText}>Join map</Text>
+            <Text style={styles.joinText}>Add friend</Text>
           </Pressable>
+          {friends.map((friend) => (
+            <View key={friend.id} style={styles.friendRow}>
+              <View style={[styles.friendDot, { backgroundColor: friend.color }]} />
+              <Text style={styles.friendName}>{friend.displayName || friend.shareCode}</Text>
+              <Pressable onPress={() => onRemoveFriend(friend.id)}>
+                <Text style={styles.removeFriend}>Remove</Text>
+              </Pressable>
+            </View>
+          ))}
           <Pressable
             style={styles.saveBtn}
             onPress={() => {
@@ -128,6 +145,7 @@ export function ProfileSheet({
             }}>
             <Text style={styles.logoutText}>Log out</Text>
           </Pressable>
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -146,6 +164,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
+    maxHeight: '88%',
   },
   handle: {
     alignSelf: 'center',
@@ -251,6 +270,27 @@ const styles = StyleSheet.create({
   joinText: {
     color: '#fff',
     fontWeight: '700',
+  },
+  friendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  friendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  friendName: {
+    flex: 1,
+    color: '#eee',
+    fontSize: 15,
+  },
+  removeFriend: {
+    color: '#ff8a80',
+    fontSize: 13,
+    fontWeight: '600',
   },
   saveBtn: {
     paddingVertical: 14,

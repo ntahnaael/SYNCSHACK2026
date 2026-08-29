@@ -8,9 +8,11 @@ import { profileInitials } from '@/constants/profile';
 import { GOOGLE_MAPS_API_KEY } from '@/lib/googleKey';
 import MapCanvas from '@/map/MapCanvas';
 import { useAuth } from '@/store/AuthContext';
+import { useFriends } from '@/store/FriendsContext';
 import { useLive } from '@/store/LiveContext';
 import { usePins } from '@/store/PinsContext';
 import { useProfile } from '@/store/ProfileContext';
+import { canSeePin } from '@/sync/liveTypes';
 import type { EventPin, LatLng } from '@/types';
 
 import { PinSheet } from './PinSheet';
@@ -19,10 +21,11 @@ import { SearchBar } from './SearchBar';
 
 export function MapScreen() {
   const insets = useSafeAreaInsets();
-  const { pins, addPin, updatePin, deletePin } = usePins();
+  const { pins, addPin, updatePin, deletePin, setGoing } = usePins();
   const { signOut } = useAuth();
   const { profile, saveProfile } = useProfile();
-  const { liveEnabled, roomCode, members, joinError, joinRoom, publishLocation, clearLocation } = useLive();
+  const { liveEnabled, members, publishLocation, clearLocation } = useLive();
+  const { friends: buddyList, friendIds, friendError, addFriend, removeFriend } = useFriends();
   const [center, setCenter] = useState<LatLng>(SYDNEY);
   const [viewCenter, setViewCenter] = useState<LatLng>(SYDNEY);
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
@@ -35,18 +38,38 @@ export function MapScreen() {
 
   const sheetOpen = Boolean(draft || selected);
   const initials = profileInitials(profile.displayName ?? '');
-  const friends = useMemo(
+  const liveMarkers = useMemo(
     () =>
-      members.map((member) => ({
-        id: member.id,
-        name: member.displayName,
-        color: member.color,
-        initials: profileInitials(member.displayName),
-        latitude: member.latitude,
-        longitude: member.longitude,
-      })),
-    [members],
+      members
+        .filter((member) => friendIds.has(member.id))
+        .map((member) => ({
+          id: member.id,
+          name: member.displayName,
+          color: member.color,
+          initials: profileInitials(member.displayName),
+          latitude: member.latitude,
+          longitude: member.longitude,
+        })),
+    [members, friendIds],
   );
+  const visiblePins = useMemo(
+    () => pins.filter((pin) => canSeePin(pin, profile.id, friendIds)),
+    [pins, profile.id, friendIds],
+  );
+  const isOwner = !selected || !selected.createdById || selected.createdById === profile.id;
+
+  useEffect(() => {
+    if (!selected) return;
+    const next = visiblePins.find((pin) => pin.id === selected.id);
+    if (!next) {
+      setSelected(null);
+      return;
+    }
+    setSelected((current) => {
+      if (!current || current.id !== next.id) return next;
+      return { ...current, going: next.going, visibility: next.visibility };
+    });
+  }, [visiblePins, selected?.id]);
 
   const clearLocationRef = useRef(clearLocation);
   clearLocationRef.current = clearLocation;
@@ -63,7 +86,7 @@ export function MapScreen() {
     if (sharing && userLocation) {
       publishLocation(userLocation).catch(() => {});
     }
-  }, [roomCode]);
+  }, [sharing]);
 
   async function stopSharing() {
     watchRef.current?.remove();
@@ -143,12 +166,12 @@ export function MapScreen() {
   return (
     <View style={styles.root}>
       <MapCanvas
-        pins={pins}
+        pins={visiblePins}
         center={center}
         userLocation={userLocation}
         userColor={profile.color}
         userInitials={initials}
-        friends={friends}
+        friends={liveMarkers}
         onViewChange={setViewCenter}
         onPinPress={(pin) => {
           setDraft(null);
@@ -171,9 +194,11 @@ export function MapScreen() {
         </View>
       </View>
       <View style={[styles.liveRow, { top: insets.top + 72 }]}>
-        <View style={styles.roomChip}>
-          <Text style={styles.roomChipText}>{roomCode || '······'}</Text>
-        </View>
+        <Pressable style={styles.roomChip} onPress={() => setProfileOpen(true)}>
+          <Text style={styles.roomChipText}>
+            {buddyList.length === 1 ? '1 friend' : `${buddyList.length} friends`}
+          </Text>
+        </Pressable>
         <Pressable
           style={[styles.shareChip, sharing && styles.shareChipOn, !liveEnabled && styles.shareChipOff]}
           onPress={() => {
@@ -207,10 +232,15 @@ export function MapScreen() {
       <ProfileSheet
         visible={profileOpen}
         profile={profile}
-        roomCode={roomCode}
         liveEnabled={liveEnabled}
-        joinError={joinError}
-        onJoin={joinRoom}
+        friends={buddyList}
+        friendError={friendError}
+        onAddFriend={(code) => {
+          addFriend(code).catch(() => {});
+        }}
+        onRemoveFriend={(id) => {
+          removeFriend(id).catch(() => {});
+        }}
         onClose={() => setProfileOpen(false)}
         onSave={saveProfile}
         onLogout={() => {
@@ -222,6 +252,9 @@ export function MapScreen() {
         visible={sheetOpen}
         pin={selected}
         coord={draft}
+        isOwner={isOwner}
+        viewerId={profile.id}
+        viewerName={profile.displayName}
         onClose={() => {
           setSelected(null);
           setDraft(null);
@@ -234,6 +267,7 @@ export function MapScreen() {
             createdByColor: input.id ? selected?.createdByColor ?? profile.color : profile.color,
           };
           if (input.id) {
+            if (!isOwner) return;
             updatePin(authored as EventPin);
           } else {
             addPin(authored);
@@ -244,13 +278,17 @@ export function MapScreen() {
           setDraft(null);
         }}
         onDelete={
-          selected
+          selected && isOwner
             ? () => {
-                deletePin(selected.id);
+                deletePin(selected.id, profile.id);
                 setSelected(null);
               }
             : undefined
         }
+        onGoing={(going) => {
+          if (!selected) return;
+          setGoing(selected.id, { id: profile.id, name: profile.displayName }, going);
+        }}
       />
     </View>
   );
@@ -311,7 +349,6 @@ const styles = StyleSheet.create({
   roomChipText: {
     color: '#fff',
     fontWeight: '700',
-    letterSpacing: 2,
     fontSize: 13,
   },
   shareChip: {
