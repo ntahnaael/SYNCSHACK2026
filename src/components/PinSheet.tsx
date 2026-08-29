@@ -85,6 +85,9 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
         <View style={styles.sheet}>
           <View style={styles.handle} />
           <Text style={styles.heading}>{pin ? 'Edit event' : 'New event'}</Text>
+          {pin?.createdByName ? (
+            <Text style={styles.droppedBy}>Dropped by {pin.createdByName}</Text>
+          ) : null}
           <TextInput
             value={title}
             onChangeText={setTitle}
@@ -218,7 +221,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 20,
     fontWeight: '700',
-    marginBottom: 14,
+    marginBottom: 8,
+  },
+  droppedBy: {
+    color: '#aaa',
+    fontSize: 13,
+    marginBottom: 12,
   },
   input: {
     backgroundColor: '#2a2a2a',

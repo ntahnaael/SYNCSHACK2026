@@ -25,6 +25,7 @@ export default function MapCanvas({
   userLocation,
   userColor,
   userInitials,
+  friends = [],
   onViewChange,
   onPinPress,
 }: MapCanvasProps) {
@@ -32,6 +33,7 @@ export default function MapCanvas({
   const mapRef = useRef<GoogleMap | null>(null);
   const markersRef = useRef<GoogleMarker[]>([]);
   const userMarkerRef = useRef<GoogleMarker | null>(null);
+  const friendMarkersRef = useRef<GoogleMarker[]>([]);
   const onViewChangeRef = useRef(onViewChange);
   const onPinPressRef = useRef(onPinPress);
   const [error, setError] = useState<string | null>(null);
@@ -132,6 +134,30 @@ export default function MapCanvas({
       },
     });
   }, [userLocation, userColor, userInitials, ready]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const google = window.google;
+    if (!ready || !map || !google) return;
+    friendMarkersRef.current.forEach((marker) => marker.setMap(null));
+    friendMarkersRef.current = friends.map((friend) => {
+      const marker = new google.maps.Marker({
+        map,
+        position: { lat: friend.latitude, lng: friend.longitude },
+        title: friend.name || 'Friend',
+        icon: {
+          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(userMarkerSvg(friend.color, friend.initials))}`,
+          scaledSize: new google.maps.Size(32, 36),
+          anchor: new google.maps.Point(16, 18),
+        },
+      });
+      return marker;
+    });
+    return () => {
+      friendMarkersRef.current.forEach((marker) => marker.setMap(null));
+      friendMarkersRef.current = [];
+    };
+  }, [friends, ready]);
 
   return (
     <View style={styles.wrap}>

@@ -9,6 +9,9 @@ export type EventPin = {
   longitude: number;
   category: PinCategory;
   time: string;
+  createdById?: string;
+  createdByName?: string;
+  createdByColor?: string;
 };
 
 export type LatLng = {

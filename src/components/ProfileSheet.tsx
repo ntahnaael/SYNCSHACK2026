@@ -16,19 +16,35 @@ import type { UserProfile } from '@/types';
 type Props = {
   visible: boolean;
   profile: UserProfile;
+  roomCode: string;
+  liveEnabled: boolean;
+  joinError: string | null;
+  onJoin: (code: string) => void;
   onClose: () => void;
   onSave: (input: Pick<UserProfile, 'displayName' | 'color'>) => void;
   onLogout: () => void;
 };
 
-export function ProfileSheet({ visible, profile, onClose, onSave, onLogout }: Props) {
+export function ProfileSheet({
+  visible,
+  profile,
+  roomCode,
+  liveEnabled,
+  joinError,
+  onJoin,
+  onClose,
+  onSave,
+  onLogout,
+}: Props) {
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [color, setColor] = useState(profile.color);
+  const [joinCode, setJoinCode] = useState('');
 
   useEffect(() => {
     if (!visible) return;
     setDisplayName(profile.displayName);
     setColor(profile.color);
+    setJoinCode('');
   }, [visible, profile]);
 
   return (
@@ -69,11 +85,33 @@ export function ProfileSheet({ visible, profile, onClose, onSave, onLogout }: Pr
               );
             })}
           </View>
-          <Text style={styles.label}>Friend code</Text>
+          <Text style={styles.label}>Map code</Text>
           <View style={styles.codeBox}>
-            <Text style={styles.code}>{profile.shareCode}</Text>
+            <Text style={styles.code}>{roomCode || profile.shareCode}</Text>
           </View>
-          <Text style={styles.codeHint}>Share this later so friends can find you.</Text>
+          <Text style={styles.codeHint}>
+            {liveEnabled
+              ? 'Friends enter this code to see your live events and location.'
+              : 'Add Firebase keys in .env to sync live events and location.'}
+          </Text>
+          <TextInput
+            value={joinCode}
+            onChangeText={setJoinCode}
+            placeholder="Join a map code"
+            placeholderTextColor="#777"
+            style={styles.input}
+            autoCapitalize="characters"
+            autoCorrect={false}
+          />
+          {joinError ? <Text style={styles.joinError}>{joinError}</Text> : null}
+          <Pressable
+            style={styles.joinBtn}
+            onPress={() => {
+              onJoin(joinCode);
+              setJoinCode('');
+            }}>
+            <Text style={styles.joinText}>Join map</Text>
+          </Pressable>
           <Pressable
             style={styles.saveBtn}
             onPress={() => {
@@ -196,7 +234,23 @@ const styles = StyleSheet.create({
   codeHint: {
     color: '#888',
     fontSize: 13,
+    marginBottom: 12,
+  },
+  joinError: {
+    color: '#ffb4b4',
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  joinBtn: {
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#2a2a2a',
+    alignItems: 'center',
     marginBottom: 16,
+  },
+  joinText: {
+    color: '#fff',
+    fontWeight: '700',
   },
   saveBtn: {
     paddingVertical: 14,

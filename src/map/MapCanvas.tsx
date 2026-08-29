@@ -13,6 +13,7 @@ export default function MapCanvas({
   userLocation,
   userColor,
   userInitials,
+  friends = [],
   onViewChange,
   onPinPress,
 }: MapCanvasProps) {
@@ -61,6 +62,18 @@ export default function MapCanvas({
           </Marker>
         );
       })}
+      {friends.map((friend) => (
+        <Marker
+          key={friend.id}
+          coordinate={{ latitude: friend.latitude, longitude: friend.longitude }}
+          anchor={{ x: 0.5, y: 0.5 }}
+          title={friend.name || 'Friend'}
+          zIndex={9}>
+          <View style={[styles.me, styles.friend, { backgroundColor: friend.color }]}>
+            <Text style={styles.meText}>{friend.initials}</Text>
+          </View>
+        </Marker>
+      ))}
       {userLocation ? (
         <Marker
           coordinate={userLocation}
@@ -112,5 +125,9 @@ const styles = StyleSheet.create({
     color: '#111',
     fontSize: 12,
     fontWeight: '800',
+  },
+  friend: {
+    borderColor: '#111',
+    borderWidth: 3,
   },
 });
