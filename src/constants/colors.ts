@@ -109,7 +109,7 @@ const palette = {
   },
 } as const;
 
-export type AppColors = typeof palette.dark;
+export type AppColors = (typeof palette)[keyof typeof palette];
 
 export function getAppColors(mode: ThemeMode): AppColors {
   return palette[mode];

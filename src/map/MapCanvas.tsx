@@ -1,9 +1,9 @@
 import { Image } from 'expo-image';
 import { useEffect, useRef } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
-import MapView, { Circle, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
-import { categoryMeta, SYDNEY } from '@/constants/pins';
+import { SYDNEY } from '@/constants/pins';
 import { useThemeMode } from '@/store/ThemeContext';
 
 import { darkMapStyle } from './darkMapStyle';
@@ -15,6 +15,9 @@ export default function MapCanvas({
   pins,
   center,
   userLocation,
+  userColor,
+  userInitials,
+  friends = [],
   onViewChange,
   onPinPress,
 }: MapCanvasProps) {
@@ -46,8 +49,7 @@ export default function MapCanvas({
       showsCompass={false}
       toolbarEnabled={false}>
       {pins.map((pin) => {
-        const svg = getIsometricPinSvg(pin.category);
-        const uri = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+        const uri = `data:image/svg+xml;utf8,${encodeURIComponent(getIsometricPinSvg(pin.category))}`;
         return (
           <Marker
             key={pin.id}
@@ -62,14 +64,27 @@ export default function MapCanvas({
           </Marker>
         );
       })}
+      {friends.map((friend) => (
+        <Marker
+          key={friend.id}
+          coordinate={{ latitude: friend.latitude, longitude: friend.longitude }}
+          anchor={{ x: 0.5, y: 0.5 }}
+          title={friend.name || 'Friend'}
+          zIndex={9}>
+          <View style={[styles.me, styles.friend, { backgroundColor: friend.color }]}>
+            <Text style={styles.meText}>{friend.initials}</Text>
+          </View>
+        </Marker>
+      ))}
       {userLocation ? (
-        <Circle
-          center={userLocation}
-          radius={28}
-          fillColor="rgba(74, 124, 63, 0.75)"
-          strokeColor="#4A7C3F"
-          strokeWidth={2}
-        />
+        <Marker
+          coordinate={userLocation}
+          anchor={{ x: 0.5, y: 0.5 }}
+          zIndex={10}>
+          <View style={[styles.me, { backgroundColor: userColor }]}>
+            <Text style={styles.meText}>{userInitials}</Text>
+          </View>
+        </Marker>
       ) : null}
     </MapView>
   );
@@ -82,5 +97,23 @@ const styles = StyleSheet.create({
   pinImage: {
     width: 48,
     height: 62,
+  },
+  me: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  meText: {
+    color: '#111',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  friend: {
+    borderColor: '#111',
+    borderWidth: 3,
   },
 });

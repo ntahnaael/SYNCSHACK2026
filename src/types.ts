@@ -1,5 +1,12 @@
 export type PinCategory = 'nature' | 'landmark' | 'community' | 'waterfront' | 'food';
 
+export type EventVisibility = 'public' | 'private';
+
+export type EventGuest = {
+  id: string;
+  name: string;
+};
+
 export type EventPin = {
   id: string;
   title: string;
@@ -9,6 +16,18 @@ export type EventPin = {
   longitude: number;
   category: PinCategory;
   time: string;
+  createdById?: string;
+  createdByName?: string;
+  createdByColor?: string;
+  visibility: EventVisibility;
+  going: EventGuest[];
+};
+
+export type Friend = {
+  id: string;
+  displayName: string;
+  color: string;
+  shareCode: string;
 };
 
 export type EventImage = {
@@ -25,4 +44,11 @@ export type LatLng = {
 export type PlaceHit = {
   placeId: string;
   description: string;
+};
+
+export type UserProfile = {
+  id: string;
+  displayName: string;
+  color: string;
+  shareCode: string;
 };

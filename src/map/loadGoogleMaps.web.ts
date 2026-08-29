@@ -35,7 +35,9 @@ declare global {
 
 type GoogleMap = {
   panTo: (latLng: { lat: number; lng: number }) => void;
-  addListener: (event: string, handler: (e: { latLng?: { lat: () => number; lng: () => number } }) => void) => void;
+  getCenter: () => { lat: () => number; lng: () => number } | undefined;
+  setOptions: (opts: Record<string, unknown>) => void;
+  addListener: (event: string, handler: (e?: { latLng?: { lat: () => number; lng: () => number } }) => void) => void;
 };
 
 type GoogleMarker = {
