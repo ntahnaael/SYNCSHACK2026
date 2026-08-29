@@ -13,6 +13,7 @@ export type MapCanvasProps = {
   pins: EventPin[];
   center: LatLng;
   userLocation: LatLng | null;
+  territory: LatLng[];
   userColor: string;
   userInitials: string;
   friends: FriendMarker[];

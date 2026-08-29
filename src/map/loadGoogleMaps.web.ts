@@ -6,6 +6,7 @@ declare global {
       maps: {
         Map: new (el: HTMLElement, opts: Record<string, unknown>) => GoogleMap;
         Marker: new (opts: Record<string, unknown>) => GoogleMarker;
+        Polygon: new (opts: Record<string, unknown>) => GooglePolygon;
         Size: new (w: number, h: number) => unknown;
         Point: new (x: number, y: number) => unknown;
         places: {
@@ -43,6 +44,10 @@ type GoogleMap = {
 type GoogleMarker = {
   setMap: (map: GoogleMap | null) => void;
   addListener: (event: string, handler: () => void) => void;
+};
+
+type GooglePolygon = {
+  setMap: (map: GoogleMap | null) => void;
 };
 
 let loading: Promise<void> | null = null;

@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -36,11 +37,26 @@ import { PinSheet } from './PinSheet';
 import { ProfileSheet } from './ProfileSheet';
 import { SearchBar } from './SearchBar';
 
+const MIN_TRAIL_DISTANCE_METRES = 3;
+const TRAIL_STORAGE_PREFIX = 'syncshack.visited-trail.v1';
+
+function distanceBetween(a: LatLng, b: LatLng) {
+  const latitudeMetres = (a.latitude - b.latitude) * 111_111;
+  const longitudeMetres = (a.longitude - b.longitude) * 111_111 * Math.cos((a.latitude * Math.PI) / 180);
+  return Math.hypot(latitudeMetres, longitudeMetres);
+}
+
+function isLatLng(value: unknown): value is LatLng {
+  if (!value || typeof value !== 'object') return false;
+  const point = value as Partial<LatLng>;
+  return Number.isFinite(point.latitude) && Number.isFinite(point.longitude);
+}
+
 export function MapScreen() {
   const insets = useSafeAreaInsets();
   const { pins, addPin, updatePin, deletePin, setGoing } = usePins();
   const { signOut } = useAuth();
-  const { profile, saveProfile } = useProfile();
+  const { profile, ready: profileReady, saveProfile } = useProfile();
   const { liveEnabled, members, publishLocation, clearLocation } = useLive();
   const { friends: buddyList, friendIds, friendError, addFriend, removeFriend } = useFriends();
   const [center, setCenter] = useState<LatLng>(SYDNEY);
@@ -53,7 +69,11 @@ export function MapScreen() {
   const [locateError, setLocateError] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [trail, setTrail] = useState<LatLng[]>([]);
+  const [trailReady, setTrailReady] = useState(false);
+  const [trackingTrail, setTrackingTrail] = useState(false);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
+  const trailWatchRef = useRef<Location.LocationSubscription | null>(null);
   const addEventTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const addEventScale = useSharedValue(1);
   const { isDark, toggle } = useThemeMode();
@@ -86,6 +106,7 @@ export function MapScreen() {
     [pins, profile.id, friendIds, selectedCategory],
   );
   const isOwner = !selected || !selected.createdById || selected.createdById === profile.id;
+  const trailStorageKey = `${TRAIL_STORAGE_PREFIX}.${profile.id}`;
 
   useEffect(
     () => () => {
@@ -107,6 +128,31 @@ export function MapScreen() {
     });
   }, [visiblePins, selected?.id]);
 
+  useEffect(() => {
+    if (!profileReady) return;
+    let cancelled = false;
+    setTrailReady(false);
+    setTrail([]);
+    AsyncStorage.getItem(trailStorageKey)
+      .then((raw) => {
+        if (cancelled || !raw) return;
+        const saved = JSON.parse(raw) as unknown;
+        if (Array.isArray(saved)) setTrail(saved.filter(isLatLng));
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setTrailReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [profileReady, trailStorageKey]);
+
+  useEffect(() => {
+    if (!trailReady) return;
+    AsyncStorage.setItem(trailStorageKey, JSON.stringify(trail)).catch(() => {});
+  }, [trail, trailReady, trailStorageKey]);
+
   const clearLocationRef = useRef(clearLocation);
   clearLocationRef.current = clearLocation;
 
@@ -114,6 +160,8 @@ export function MapScreen() {
     return () => {
       watchRef.current?.remove();
       watchRef.current = null;
+      trailWatchRef.current?.remove();
+      trailWatchRef.current = null;
       clearLocationRef.current().catch(() => {});
     };
   }, []);
@@ -185,6 +233,58 @@ export function MapScreen() {
     setSharing(true);
   }
 
+  function appendTrail(coord: LatLng) {
+    setTrail((current) => {
+      const previous = current.at(-1);
+      if (previous && distanceBetween(previous, coord) < MIN_TRAIL_DISTANCE_METRES) return current;
+      return [...current, coord];
+    });
+  }
+
+  function stopTrail() {
+    trailWatchRef.current?.remove();
+    trailWatchRef.current = null;
+    setTrackingTrail(false);
+  }
+
+  async function startTrail() {
+    setLocateError(null);
+    if (!trailReady) {
+      setLocateError('Your visited map is still loading. Try again in a moment.');
+      return;
+    }
+    const permission = await Location.requestForegroundPermissionsAsync();
+    if (permission.status !== 'granted') {
+      setLocateError('Location permission is needed to mark your territory.');
+      return;
+    }
+    const position = await Location.getCurrentPositionAsync({});
+    const next = {
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+    };
+    setUserLocation(next);
+    setCenter(next);
+    setViewCenter(next);
+    appendTrail(next);
+    trailWatchRef.current?.remove();
+    trailWatchRef.current = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.Balanced,
+        distanceInterval: MIN_TRAIL_DISTANCE_METRES,
+      },
+      (update) => {
+        const coord = {
+          latitude: update.coords.latitude,
+          longitude: update.coords.longitude,
+        };
+        setUserLocation(coord);
+        appendTrail(coord);
+      },
+    );
+    setTrackingTrail(true);
+  }
+
   async function locateMe() {
     setLocateError(null);
     const permission = await Location.requestForegroundPermissionsAsync();
@@ -223,6 +323,7 @@ export function MapScreen() {
         pins={visiblePins}
         center={center}
         userLocation={userLocation}
+        territory={trail}
         userColor={profile.color}
         userInitials={initials}
         friends={liveMarkers}
@@ -265,6 +366,19 @@ export function MapScreen() {
           }}>
           <Text style={[styles.shareChipText, sharing && styles.shareChipTextOn]}>
             {sharing ? 'Sharing live' : 'Share live'}
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.shareChip, trackingTrail && styles.shareChipOn]}
+          onPress={() => {
+            if (trackingTrail) {
+              stopTrail();
+            } else {
+              startTrail().catch(() => setLocateError('Could not start territory tracking.'));
+            }
+          }}>
+          <Text style={[styles.shareChipText, trackingTrail && styles.shareChipTextOn]}>
+            {trackingTrail ? 'Territory on' : trail.length > 1 ? 'Resume territory' : 'Mark territory'}
           </Text>
         </Pressable>
       </View>
@@ -357,6 +471,7 @@ export function MapScreen() {
         onSave={saveProfile}
         onLogout={() => {
           stopSharing().catch(() => {});
+          stopTrail();
           signOut().catch(() => {});
         }}
       />

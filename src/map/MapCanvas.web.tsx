@@ -9,6 +9,7 @@ import { lightMapStyle } from './lightMapStyle';
 import { loadGoogleMaps } from './loadGoogleMaps.web';
 import type { MapCanvasProps } from './mapTypes';
 import { getIsometricPinSvg, userMarkerSvg } from './pinIcon';
+import { territoryPolygon } from './territory';
 
 type GoogleMap = {
   panTo: (latLng: { lat: number; lng: number }) => void;
@@ -22,10 +23,15 @@ type GoogleMarker = {
   addListener: (event: string, handler: () => void) => void;
 };
 
+type GooglePolygon = {
+  setMap: (map: GoogleMap | null) => void;
+};
+
 export default function MapCanvas({
   pins,
   center,
   userLocation,
+  territory,
   userColor,
   userInitials,
   friends = [],
@@ -37,6 +43,7 @@ export default function MapCanvas({
   const markersRef = useRef<GoogleMarker[]>([]);
   const userMarkerRef = useRef<GoogleMarker | null>(null);
   const friendMarkersRef = useRef<GoogleMarker[]>([]);
+  const territoryPolygonRef = useRef<GooglePolygon | null>(null);
   const onViewChangeRef = useRef(onViewChange);
   const onPinPressRef = useRef(onPinPress);
   const [error, setError] = useState<string | null>(null);
@@ -147,6 +154,31 @@ export default function MapCanvas({
       },
     });
   }, [userLocation, userColor, userInitials, ready]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const google = window.google;
+    if (!ready || !map || !google) return;
+
+    territoryPolygonRef.current?.setMap(null);
+    territoryPolygonRef.current = null;
+    const shape = territoryPolygon(territory);
+    if (shape.length < 3) return;
+    territoryPolygonRef.current = new google.maps.Polygon({
+        map,
+        paths: shape.map((point) => ({ lat: point.latitude, lng: point.longitude })),
+        strokeColor: '#49bbff',
+        strokeOpacity: 0.24,
+        strokeWeight: 1,
+        fillColor: '#49bbff',
+        fillOpacity: 0.18,
+      });
+
+    return () => {
+      territoryPolygonRef.current?.setMap(null);
+      territoryPolygonRef.current = null;
+    };
+  }, [territory, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
