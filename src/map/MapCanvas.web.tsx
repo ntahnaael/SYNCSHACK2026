@@ -1,7 +1,6 @@
 import { createElement, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { categoryMeta } from '@/constants/pins';
 import { useAppColors } from '@/hooks/use-app-colors';
 import { useThemeMode } from '@/store/ThemeContext';
 
@@ -9,7 +8,7 @@ import { darkMapStyle } from './darkMapStyle';
 import { lightMapStyle } from './lightMapStyle';
 import { loadGoogleMaps } from './loadGoogleMaps.web';
 import type { MapCanvasProps } from './mapTypes';
-import { pinIconSvg } from './pinIcon';
+import { getIsometricPinSvg } from './pinIcon';
 
 type GoogleMap = {
   panTo: (latLng: { lat: number; lng: number }) => void;
@@ -107,13 +106,12 @@ export default function MapCanvas({
 
     markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current = pins.map((pin) => {
-      const color = categoryMeta(pin.category).color;
       const marker = new google.maps.Marker({
         map,
         position: { lat: pin.latitude, lng: pin.longitude },
         title: pin.title,
         icon: {
-          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(pinIconSvg(color))}`,
+          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(getIsometricPinSvg(pin.category))}`,
           scaledSize: new google.maps.Size(36, 48),
           anchor: new google.maps.Point(18, 48),
         },

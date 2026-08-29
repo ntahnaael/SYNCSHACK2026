@@ -1,4 +1,4 @@
-export type PinCategory = 'landmark' | 'nightlife' | 'hangout' | 'nature';
+export type PinCategory = 'nature' | 'landmark' | 'community' | 'waterfront' | 'food';
 
 export type EventPin = {
   id: string;

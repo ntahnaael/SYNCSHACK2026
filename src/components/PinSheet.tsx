@@ -26,6 +26,7 @@ type Props = {
   visible: boolean;
   pin: EventPin | null;
   coord: LatLng | null;
+  anchorBottom: number;
   onClose: () => void;
   onSave: (
     pin: Omit<EventPin, 'id'> & { id?: string },
@@ -43,7 +44,7 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
   const [picked, setPicked] = useState<LatLng | null>(null);
   const [hits, setHits] = useState<PlaceHit[]>([]);
   const [locateHint, setLocateHint] = useState<string | null>(null);
-  const [category, setCategory] = useState<PinCategory>('hangout');
+  const [category, setCategory] = useState<PinCategory>('nature');
   const [photo, setPhoto] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [storedPhotoUri, setStoredPhotoUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -58,7 +59,7 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
     setPicked(pin ?? coord);
     setHits([]);
     setLocateHint(null);
-    setCategory(pin?.category ?? 'hangout');
+    setCategory(pin?.category ?? 'nature');
     setPhoto(null);
     setStoredPhotoUri(null);
     setSaving(false);
@@ -233,21 +234,23 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
             style={[styles.input, styles.notes]}
             multiline
           />
-          <Text style={styles.label}>Customize</Text>
+          <Text style={styles.label}>Category</Text>
           <View style={styles.cats}>
             {CATEGORIES.map((item) => {
-              const selected = item.id === category;
+              const isSelected = item.id === category;
               return (
                 <Pressable
                   key={item.id}
                   onPress={() => setCategory(item.id)}
                   style={[
                     styles.cat,
-                    { borderColor: item.color },
-                    selected && { backgroundColor: item.color },
+                    {
+                      borderColor: isSelected ? item.color : '#444',
+                      backgroundColor: isSelected ? `${item.color}25` : '#2a2a2a',
+                    },
                   ]}>
-                  <View style={[styles.dot, { backgroundColor: selected ? '#111' : item.color }]} />
-                  <Text style={[styles.catText, selected && { color: '#111' }]}>{item.label}</Text>
+                  <View style={[styles.dot, { backgroundColor: item.color }]} />
+                  <Text style={[styles.catText, isSelected && styles.catTextSelected]}>{item.label}</Text>
                 </Pressable>
               );
             })}
@@ -418,6 +421,9 @@ const styles = StyleSheet.create({
   catText: {
     color: '#eee',
     fontSize: 13,
+  },
+  catTextSelected: {
+    fontWeight: '700',
   },
   dot: {
     width: 8,

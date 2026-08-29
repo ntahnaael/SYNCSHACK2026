@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { SEED_PINS } from '@/constants/pins';
 import type { EventPin } from '@/types';
 
-const STORAGE_KEY = 'syncshack.eventPins';
+const STORAGE_KEY = 'syncshack.eventPins.v2';
 
 type PinsContextValue = {
   pins: EventPin[];

@@ -1,14 +1,15 @@
+import { Image } from 'expo-image';
 import { useEffect, useRef } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import MapView, { Circle, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
 import { categoryMeta, SYDNEY } from '@/constants/pins';
-import { useAppColors } from '@/hooks/use-app-colors';
 import { useThemeMode } from '@/store/ThemeContext';
 
 import { darkMapStyle } from './darkMapStyle';
 import { lightMapStyle } from './lightMapStyle';
 import type { MapCanvasProps } from './mapTypes';
+import { getIsometricPinSvg } from './pinIcon';
 
 export default function MapCanvas({
   pins,
@@ -19,7 +20,6 @@ export default function MapCanvas({
 }: MapCanvasProps) {
   const mapRef = useRef<MapView>(null);
   const { isDark } = useThemeMode();
-  const colors = useAppColors();
 
   useEffect(() => {
     mapRef.current?.animateToRegion(
@@ -46,7 +46,8 @@ export default function MapCanvas({
       showsCompass={false}
       toolbarEnabled={false}>
       {pins.map((pin) => {
-        const meta = categoryMeta(pin.category);
+        const svg = getIsometricPinSvg(pin.category);
+        const uri = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
         return (
           <Marker
             key={pin.id}
@@ -57,10 +58,7 @@ export default function MapCanvas({
             }}
             tracksViewChanges={false}
             anchor={{ x: 0.5, y: 1 }}>
-            <View style={styles.pinWrap}>
-              <View style={[styles.pin, { backgroundColor: meta.color, borderColor: colors.pinBorder }]} />
-              <View style={[styles.tip, { borderTopColor: meta.color }]} />
-            </View>
+            <Image source={{ uri }} style={styles.pinImage} contentFit="contain" />
           </Marker>
         );
       })}
@@ -68,8 +66,8 @@ export default function MapCanvas({
         <Circle
           center={userLocation}
           radius={28}
-          fillColor="rgba(255, 59, 48, 0.85)"
-          strokeColor="#ff3b30"
+          fillColor="rgba(74, 124, 63, 0.75)"
+          strokeColor="#4A7C3F"
           strokeWidth={2}
         />
       ) : null}
@@ -81,23 +79,8 @@ const styles = StyleSheet.create({
   map: {
     ...StyleSheet.absoluteFill,
   },
-  pinWrap: {
-    alignItems: 'center',
-  },
-  pin: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 3,
-  },
-  tip: {
-    width: 0,
-    height: 0,
-    marginTop: -2,
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderTopWidth: 8,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
+  pinImage: {
+    width: 48,
+    height: 62,
   },
 });

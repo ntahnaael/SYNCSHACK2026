@@ -1,8 +1,13 @@
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { FAB } from 'react-native-paper';
-import Animated, { ZoomIn, ZoomOut } from 'react-native-reanimated';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  FadeIn,
+  FadeOut,
+  ZoomIn,
+  ZoomOut,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SYDNEY } from '@/constants/pins';
@@ -12,8 +17,9 @@ import MapCanvas from '@/map/MapCanvas';
 import { saveEventImage } from '@/services/event-images';
 import { usePins } from '@/store/PinsContext';
 import { useThemeMode } from '@/store/ThemeContext';
-import type { EventPin, LatLng } from '@/types';
+import type { EventPin, LatLng, PinCategory } from '@/types';
 
+import { CategoryLegend } from './CategoryLegend';
 import { PinSheet } from './PinSheet';
 import { SearchBar } from './SearchBar';
 
@@ -25,11 +31,14 @@ export function MapScreen() {
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [draft, setDraft] = useState<LatLng | null>(null);
   const [selected, setSelected] = useState<EventPin | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<PinCategory | null>(null);
+  const [legendOpen, setLegendOpen] = useState(false);
   const [locateError, setLocateError] = useState<string | null>(null);
   const { isDark, toggle } = useThemeMode();
   const colors = useAppColors();
 
   const sheetOpen = Boolean(draft || selected);
+  const visiblePins = selectedCategory ? pins.filter((p) => p.category === selectedCategory) : pins;
 
   async function locateMe() {
     setLocateError(null);
@@ -55,8 +64,12 @@ export function MapScreen() {
         <Text style={[styles.missingBody, { color: colors.textMuted }]}>
           Create a .env file in the repo root with:
         </Text>
-        <Text style={[styles.missingCode, { color: colors.text, backgroundColor: colors.inputBg }]}>EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=your_key</Text>
-        <Text style={[styles.missingBody, { color: colors.textMuted }]}>Then restart Expo so the key is picked up.</Text>
+        <Text style={[styles.missingCode, { color: colors.text, backgroundColor: colors.inputBg }]}>
+          EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=your_key
+        </Text>
+        <Text style={[styles.missingBody, { color: colors.textMuted }]}>
+          Then restart Expo so the key is picked up.
+        </Text>
       </View>
     );
   }
@@ -64,7 +77,7 @@ export function MapScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <MapCanvas
-        pins={pins}
+        pins={visiblePins}
         center={center}
         userLocation={userLocation}
         onViewChange={setViewCenter}
@@ -73,6 +86,8 @@ export function MapScreen() {
           setSelected(pin);
         }}
       />
+
+      {/* Top Search Bar */}
       <View style={{ paddingTop: insets.top }}>
         <SearchBar
           onSelect={(coord) => {
@@ -81,46 +96,108 @@ export function MapScreen() {
           }}
         />
       </View>
-      {locateError ? <Text style={[styles.locateError, { color: colors.errorText }]}>{locateError}</Text> : null}
 
-      {/* Theme toggle FAB */}
+      {locateError ? (
+        <Text style={[styles.locateError, { color: colors.errorText }]}>{locateError}</Text>
+      ) : null}
+
+      {/* Bottom Left FAB Stack + Legend */}
       {!sheetOpen && (
-        <Animated.View entering={ZoomIn.springify().delay(200)} exiting={ZoomOut} style={[styles.fabWrap, { bottom: insets.bottom + 152 }]}>
-          <FAB
-            icon={isDark ? 'weather-sunny' : 'weather-night'}
-            accessibilityLabel="Toggle theme"
-            style={[styles.fab, { backgroundColor: colors.fabBg }]}
-            color={isDark ? '#FFF9C4' : '#E8E1F4'}
+        <Animated.View
+          entering={ZoomIn.springify().delay(150)}
+          exiting={ZoomOut}
+          style={[styles.leftColumn, { bottom: insets.bottom + 24 }]}>
+
+          {/* Category Legend Panel — slides in above the buttons when open */}
+          {legendOpen && (
+            <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)}>
+              <CategoryLegend
+                selectedCategory={selectedCategory}
+                onSelectCategory={(cat) => {
+                  setSelectedCategory(cat);
+                }}
+              />
+            </Animated.View>
+          )}
+
+          {/* Layers / Filter toggle button */}
+          <Pressable
+            accessibilityLabel="Toggle category filter"
+            onPress={() => {
+              setLegendOpen((prev) => !prev);
+              if (legendOpen) setSelectedCategory(null);
+            }}
+            style={({ pressed }) => [
+              styles.controlBtn,
+              {
+                backgroundColor: legendOpen ? colors.textAccent : colors.surface,
+                borderColor: legendOpen ? colors.textAccent : colors.surfaceBorder,
+                transform: [{ scale: pressed ? 0.94 : 1 }],
+              },
+            ]}>
+            <MaterialCommunityIcons
+              name="layers-outline"
+              size={22}
+              color={legendOpen ? (isDark ? '#0E0E0E' : '#FDF9F6') : colors.text}
+            />
+          </Pressable>
+
+          {/* Theme Toggle */}
+          <Pressable
+            accessibilityLabel="Toggle light and dark theme"
             onPress={toggle}
-            size="small"
-          />
-        </Animated.View>
-      )}
-      {!sheetOpen && (
-        <Animated.View entering={ZoomIn.springify()} exiting={ZoomOut} style={[styles.fabWrap, { bottom: insets.bottom + 88 }]}>
-          <FAB
-            icon="plus"
-            accessibilityLabel="Add event"
-            style={[styles.fab, { backgroundColor: colors.fabBg }]}
+            style={({ pressed }) => [
+              styles.controlBtn,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.surfaceBorder,
+                transform: [{ scale: pressed ? 0.94 : 1 }],
+              },
+            ]}>
+            <Ionicons
+              name={isDark ? 'sunny-outline' : 'moon-outline'}
+              size={22}
+              color={isDark ? '#F59E0B' : '#333D29'}
+            />
+          </Pressable>
+
+          {/* Locate Me */}
+          <Pressable
+            accessibilityLabel="Locate my position"
+            onPress={() => {
+              locateMe().catch(() => setLocateError('Could not read your location.'));
+            }}
+            style={({ pressed }) => [
+              styles.controlBtn,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.surfaceBorder,
+                transform: [{ scale: pressed ? 0.94 : 1 }],
+              },
+            ]}>
+            <MaterialCommunityIcons name="crosshairs-gps" size={22} color={colors.text} />
+          </Pressable>
+
+          {/* Add Pin (dark green) */}
+          <Pressable
+            accessibilityLabel="Add new pin event"
             onPress={() => {
               setSelected(null);
               setDraft(viewCenter);
             }}
-          />
+            style={({ pressed }) => [
+              styles.controlBtn,
+              styles.primaryControlBtn,
+              {
+                backgroundColor: '#4E6E37',
+                transform: [{ scale: pressed ? 0.94 : 1 }],
+              },
+            ]}>
+            <Ionicons name="add" size={28} color="#FFFFFF" />
+          </Pressable>
         </Animated.View>
       )}
-      {!sheetOpen && (
-        <Animated.View entering={ZoomIn.springify().delay(100)} exiting={ZoomOut} style={[styles.fabWrap, { bottom: insets.bottom + 24 }]}>
-          <FAB
-            icon="crosshairs-gps"
-            accessibilityLabel="Use my location"
-            style={[styles.fab, { backgroundColor: colors.fabBg }]}
-            onPress={() => {
-              locateMe().catch(() => setLocateError('Could not read your location.'));
-            }}
-          />
-        </Animated.View>
-      )}
+
       <PinSheet
         visible={sheetOpen}
         pin={selected}
@@ -181,12 +258,34 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
   },
-  fabWrap: {
+  leftColumn: {
     position: 'absolute',
-    left: 18,
+    left: 16,
+    zIndex: 25,
+    gap: 10,
+    alignItems: 'flex-start',
   },
-  fab: {
+  controlBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  primaryControlBtn: {
+    width: 52,
+    height: 52,
     borderRadius: 18,
+    borderWidth: 0,
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    elevation: 6,
   },
   locateError: {
     position: 'absolute',
@@ -194,5 +293,7 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
