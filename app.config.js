@@ -16,7 +16,7 @@ export default {
         googleMapsApiKey,
       },
       infoPlist: {
-        NSLocationWhenInUseUsageDescription: 'Show your location on the map.',
+        NSLocationWhenInUseUsageDescription: 'Show your location on the map and mark the places you visit while the app is open.',
       },
     },
     android: {
@@ -51,7 +51,7 @@ export default {
       [
         'expo-location',
         {
-          locationWhenInUsePermission: 'Show your location on the map.',
+          locationWhenInUsePermission: 'Show your location on the map and mark the places you visit while the app is open.',
         },
       ],
       [

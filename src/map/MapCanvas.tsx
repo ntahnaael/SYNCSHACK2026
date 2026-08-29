@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
 
 import { categoryMeta, SYDNEY } from '@/constants/pins';
 import { useAppColors } from '@/hooks/use-app-colors';
@@ -9,11 +9,13 @@ import { useThemeMode } from '@/store/ThemeContext';
 import { darkMapStyle } from './darkMapStyle';
 import { lightMapStyle } from './lightMapStyle';
 import type { MapCanvasProps } from './mapTypes';
+import { territoryPolygon } from './territory';
 
 export default function MapCanvas({
   pins,
   center,
   userLocation,
+  territory,
   userColor,
   userInitials,
   friends = [],
@@ -23,6 +25,7 @@ export default function MapCanvas({
   const mapRef = useRef<MapView>(null);
   const { isDark } = useThemeMode();
   const colors = useAppColors();
+  const territoryShape = territoryPolygon(territory);
 
   useEffect(() => {
     mapRef.current?.animateToRegion(
@@ -40,7 +43,7 @@ export default function MapCanvas({
     <MapView
       ref={mapRef}
       style={styles.map}
-      provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+      provider={PROVIDER_GOOGLE}
       customMapStyle={isDark ? darkMapStyle : lightMapStyle}
       initialRegion={SYDNEY}
       onRegionChangeComplete={(region) =>
@@ -48,6 +51,15 @@ export default function MapCanvas({
       }
       showsCompass={false}
       toolbarEnabled={false}>
+      {territoryShape.length > 2 ? (
+        <Polygon
+          coordinates={territoryShape}
+          fillColor="rgba(73, 187, 255, 0.18)"
+          strokeColor="rgba(73, 187, 255, 0.24)"
+          strokeWidth={1}
+          zIndex={1}
+        />
+      ) : null}
       {pins.map((pin) => {
         const meta = categoryMeta(pin.category);
         return (
@@ -58,7 +70,9 @@ export default function MapCanvas({
               event.stopPropagation();
               onPinPress(pin);
             }}
-            tracksViewChanges={false}
+            // Google Maps on iOS can snapshot a custom marker before its child view is laid out.
+            // Keeping updates enabled there ensures event pins render instead of appearing blank.
+            tracksViewChanges={Platform.OS === 'ios'}
             anchor={{ x: 0.5, y: 1 }}>
             <View style={styles.pinWrap}>
               <View style={[styles.pin, { backgroundColor: meta.color, borderColor: colors.pinBorder }]} />
