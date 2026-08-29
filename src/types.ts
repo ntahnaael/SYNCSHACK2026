@@ -11,6 +11,12 @@ export type EventPin = {
   time: string;
 };
 
+export type EventImage = {
+  id: string;
+  uri: string;
+  createdAt: string;
+};
+
 export type LatLng = {
   latitude: number;
   longitude: number;

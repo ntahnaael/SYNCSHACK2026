@@ -1,18 +1,25 @@
 import * as Location from 'expo-location';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 
 import { CATEGORIES } from '@/constants/pins';
 import { getPlaceLocation, searchPlaces } from '@/map/searchPlaces';
+import { loadEventImages } from '@/services/event-images';
 import type { EventPin, LatLng, PinCategory, PlaceHit } from '@/types';
 
 type Props = {
@@ -20,11 +27,15 @@ type Props = {
   pin: EventPin | null;
   coord: LatLng | null;
   onClose: () => void;
-  onSave: (pin: Omit<EventPin, 'id'> & { id?: string }) => void;
+  onSave: (
+    pin: Omit<EventPin, 'id'> & { id?: string },
+    photo: ImagePicker.ImagePickerAsset | null,
+  ) => EventPin | Promise<EventPin>;
   onDelete?: () => void;
 };
 
 export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Props) {
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [time, setTime] = useState('');
@@ -33,6 +44,9 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
   const [hits, setHits] = useState<PlaceHit[]>([]);
   const [locateHint, setLocateHint] = useState<string | null>(null);
   const [category, setCategory] = useState<PinCategory>('hangout');
+  const [photo, setPhoto] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [storedPhotoUri, setStoredPhotoUri] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
@@ -44,7 +58,17 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
     setHits([]);
     setLocateHint(null);
     setCategory(pin?.category ?? 'hangout');
+    setPhoto(null);
+    setStoredPhotoUri(null);
+    setSaving(false);
   }, [visible, pin, coord]);
+
+  useEffect(() => {
+    if (!visible || !pin) return;
+    loadEventImages()
+      .then((images) => setStoredPhotoUri(images[pin.id]?.at(-1)?.uri ?? null))
+      .catch(() => setStoredPhotoUri(null));
+  }, [visible, pin]);
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -62,6 +86,10 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
 
   if (!visible || (!pin && !coord)) return null;
 
+  const photoUri = photo?.uri ?? storedPhotoUri;
+  const heroWidth = Math.min(windowWidth - 40, 920);
+  const heroHeight = Math.min(Math.round(heroWidth * (9 / 16)), Math.round(windowHeight * 0.36));
+
   async function useMyLocation() {
     setLocateHint(null);
     const permission = await Location.requestForegroundPermissionsAsync();
@@ -78,12 +106,66 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
     setHits([]);
   }
 
+  async function choosePhoto() {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Photo permission needed', 'Allow photo access to attach an image to this event.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 0.8,
+        base64: Platform.OS === 'web',
+      });
+      if (!result.canceled) setPhoto(result.assets[0]);
+    } catch {
+      Alert.alert('Could not choose photo', 'Please try again.');
+    }
+  }
+
+  async function saveEvent() {
+    if (!title.trim() || !place.trim() || !picked || saving) return;
+    setSaving(true);
+    try {
+      await onSave({
+        id: pin?.id,
+        title: title.trim(),
+        notes: notes.trim(),
+        time: time.trim(),
+        place: place.trim(),
+        category,
+        latitude: picked.latitude,
+        longitude: picked.longitude,
+      }, photo);
+    } catch {
+      Alert.alert('Could not save event', 'Please try again.');
+      setSaving(false);
+    }
+  }
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.sheet}>
+        <ScrollView style={styles.sheet} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
           <View style={styles.handle} />
+          {pin ? (
+            <View style={[styles.eventHeroFrame, { width: heroWidth, height: heroHeight }]}>
+              {photoUri ? (
+                <Image
+                  source={{ uri: photoUri }}
+                  style={styles.eventHeroImage}
+                  contentFit="contain"
+                  transition={180}
+                />
+              ) : <Text style={styles.noPhotoText}>No event photo yet</Text>}
+              <Pressable style={styles.heroEditButton} onPress={() => { choosePhoto().catch(() => {}); }}>
+                <Text style={styles.photoButtonText}>{photoUri ? 'Change photo' : '+ Add photo'}</Text>
+              </Pressable>
+            </View>
+          ) : null}
           <Text style={styles.heading}>{pin ? 'Edit event' : 'New event'}</Text>
           <TextInput
             value={title}
@@ -170,24 +252,13 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
               <View style={styles.flex} />
             )}
             <Pressable
-              style={[styles.saveBtn, (!title.trim() || !place.trim() || !picked) && styles.saveDisabled]}
-              onPress={() => {
-                if (!title.trim() || !place.trim() || !picked) return;
-                onSave({
-                  id: pin?.id,
-                  title: title.trim(),
-                  notes: notes.trim(),
-                  time: time.trim(),
-                  place: place.trim(),
-                  category,
-                  latitude: picked.latitude,
-                  longitude: picked.longitude,
-                });
-              }}>
-              <Text style={styles.saveText}>Save</Text>
+              disabled={saving || !title.trim() || !place.trim() || !picked}
+              style={[styles.saveBtn, (saving || !title.trim() || !place.trim() || !picked) && styles.saveDisabled]}
+              onPress={() => { saveEvent().catch(() => {}); }}>
+              {saving ? <ActivityIndicator color="#111" /> : <Text style={styles.saveText}>Save</Text>}
             </Pressable>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -200,11 +271,15 @@ const styles = StyleSheet.create({
   },
   sheet: {
     backgroundColor: '#1c1c1c',
+    maxHeight: Platform.OS === 'web' ? '100%' : '92%',
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+  },
+  sheetContent: {
     paddingHorizontal: 20,
     paddingBottom: 28,
     paddingTop: 10,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    alignItems: 'stretch',
   },
   handle: {
     alignSelf: 'center',
@@ -219,6 +294,34 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     marginBottom: 14,
+  },
+  eventHeroFrame: {
+    alignSelf: 'center',
+    borderRadius: 16,
+    backgroundColor: '#111',
+    overflow: 'hidden',
+    marginBottom: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eventHeroImage: {
+    width: '100%',
+    height: '100%',
+  },
+  noPhotoText: {
+    color: '#9AA5B5',
+    fontSize: 15,
+  },
+  heroEditButton: {
+    position: 'absolute',
+    right: 14,
+    bottom: 14,
+    borderWidth: 1,
+    borderColor: '#8ab4ff',
+    borderRadius: 10,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(17,17,17,0.88)',
   },
   input: {
     backgroundColor: '#2a2a2a',
@@ -259,6 +362,29 @@ const styles = StyleSheet.create({
     color: '#ffb4b4',
     marginBottom: 10,
     fontSize: 13,
+  },
+  photoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 14,
+  },
+  photoPreview: {
+    width: 72,
+    height: 54,
+    borderRadius: 10,
+    backgroundColor: '#2a2a2a',
+  },
+  photoButton: {
+    borderWidth: 1,
+    borderColor: '#8ab4ff',
+    borderRadius: 10,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+  },
+  photoButtonText: {
+    color: '#8ab4ff',
+    fontWeight: '600',
   },
   label: {
     color: '#aaa',
