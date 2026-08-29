@@ -6,6 +6,7 @@
     "@expo/ui": "~57.0.14",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "cors": "^2.8.6",
     "expo": "~57.0.18",
     "expo-constants": "~57.0.16",
     "expo-device": "~57.0.1",
@@ -21,6 +22,8 @@
     "expo-symbols": "~57.0.2",
     "expo-system-ui": "~57.0.3",
     "expo-web-browser": "~57.0.2",
+    "express": "^5.2.1",
+    "multer": "^2.3.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
@@ -42,6 +45,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "server": "node server/index.js",
     "lint": "expo lint"
   },
   "private": true
