@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import {
   ActivityIndicator,
   Pressable,
@@ -22,12 +23,14 @@ import Animated, {
 import { useAppColors } from '@/hooks/use-app-colors';
 import { getPlaceLocation, searchPlaces } from '@/map/searchPlaces';
 import type { LatLng, PlaceHit } from '@/types';
+import { useThemeMode } from '@/store/ThemeContext';
 
 type Props = {
   onSelect: (coord: LatLng) => void;
+  onExpandedChange?: (expanded: boolean) => void;
 };
 
-export function SearchBar({ onSelect }: Props) {
+export function SearchBar({ onSelect, onExpandedChange }: Props) {
   const { width: windowWidth } = useWindowDimensions();
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<PlaceHit[]>([]);
@@ -35,8 +38,10 @@ export function SearchBar({ onSelect }: Props) {
   const [expanded, setExpanded] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const barWidth = useSharedValue(56);
-  const expandedWidth = Math.min(windowWidth - 32, 560);
+  // Leave room for the profile button and the fixed upper-right voxel logo.
+  const expandedWidth = Math.max(56, Math.min(windowWidth - 216, 560));
   const colors = useAppColors();
+  const { isDark } = useThemeMode();
 
   const animatedWrapStyle = useAnimatedStyle(() => ({
     width: barWidth.value,
@@ -49,6 +54,10 @@ export function SearchBar({ onSelect }: Props) {
       mass: 0.72,
     });
   }, [barWidth, expanded, expandedWidth]);
+
+  useEffect(() => {
+    onExpandedChange?.(expanded);
+  }, [expanded, onExpandedChange]);
 
   useEffect(() => {
     if (!expanded) return;
@@ -80,15 +89,26 @@ export function SearchBar({ onSelect }: Props) {
           { backgroundColor: colors.searchBarBg, borderColor: colors.searchBarBorder },
           !expanded && {
             borderRadius: 18,
-            backgroundColor: colors.searchBarCollapsedBg,
-            borderColor: colors.searchBarCollapsedBorder,
+            backgroundColor: 'rgba(255,255,255,0.12)',
+            borderColor: 'rgba(255,255,255,0.24)',
+            shadowColor: '#FFFFFF',
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.3,
+            shadowRadius: 12,
+            elevation: 5,
           },
+          !expanded && !isDark && styles.collapsedBarLight,
         ]}>
         <Pressable
           accessibilityLabel={expanded ? 'Focus search' : 'Open search'}
           onPress={() => setExpanded(true)}
           style={styles.iconButton}>
-          <MaterialCommunityIcons name="magnify" size={25} color={colors.searchIcon} />
+          <Image
+            accessibilityLabel="Voxel search icon"
+            source={require('../../assets/images/control-search-voxel.png')}
+            contentFit="contain"
+            style={styles.searchVoxelIcon}
+          />
         </Pressable>
         {expanded ? (
           <Animated.View entering={FadeIn.delay(80).duration(140)} exiting={FadeOut.duration(80)} style={styles.inputWrap}>
@@ -164,6 +184,11 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
   },
+  collapsedBarLight: {
+    backgroundColor: 'rgba(255,255,255,0.32)',
+    borderColor: 'rgba(255,255,255,0.62)',
+    shadowOpacity: 0.42,
+  },
   iconButton: {
     width: 54,
     height: 54,
@@ -171,13 +196,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
+  searchVoxelIcon: {
+    width: 42,
+    height: 42,
+  },
   inputWrap: {
     flex: 1,
     minWidth: 0,
   },
   input: {
     width: '100%',
-    fontSize: 15.5,
+    fontSize: 13.5,
     paddingVertical: 14,
     paddingHorizontal: 2,
     letterSpacing: 0.1,
@@ -201,7 +230,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   hitText: {
-    fontSize: 14,
+    fontSize: 12.5,
     letterSpacing: 0.05,
   },
 });

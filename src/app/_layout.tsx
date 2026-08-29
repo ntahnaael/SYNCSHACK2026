@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router';
+import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
 import { PaperProvider, MD3DarkTheme, MD3LightTheme } from 'react-native-paper';
@@ -34,6 +35,12 @@ function InnerLayout() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    'Minecraft Pixel': require('../../assets/fonts/PressStart2P-Regular.ttf'),
+  });
+
+  if (!fontsLoaded && !fontError) return null;
+
   return (
     <ThemeProvider>
       <AuthProvider>

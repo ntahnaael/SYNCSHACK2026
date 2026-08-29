@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
+import { Image } from 'expo-image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { FAB } from 'react-native-paper';
 import Animated, {
   Easing,
   FadeIn,
@@ -68,6 +68,7 @@ export function MapScreen() {
   const [legendOpen, setLegendOpen] = useState(false);
   const [locateError, setLocateError] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [trail, setTrail] = useState<LatLng[]>([]);
   const [territoryVisible, setTerritoryVisible] = useState(true);
@@ -331,6 +332,13 @@ export function MapScreen() {
           setSelected(pin);
         }}
       />
+      <Image
+        accessibilityLabel="Sydney voxel artwork"
+        source={require('../../assets/images/sydney-voxel-mark.png')}
+        contentFit="contain"
+        pointerEvents="none"
+        style={[styles.cornerMark, { top: insets.top + 14 }]}
+      />
       <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
         <Pressable
           accessibilityLabel="Open profile"
@@ -340,6 +348,7 @@ export function MapScreen() {
         </Pressable>
         <View style={styles.searchSlot}>
           <SearchBar
+            onExpandedChange={setSearchOpen}
             onSelect={(coord) => {
               setCenter(coord);
               setViewCenter(coord);
@@ -347,33 +356,38 @@ export function MapScreen() {
           />
         </View>
       </View>
-      <View style={[styles.liveRow, { top: insets.top + 72 }]}>
-        <Pressable style={styles.roomChip} onPress={() => setProfileOpen(true)}>
-          <Text style={styles.roomChipText}>
-            {buddyList.length === 1 ? '1 friend' : `${buddyList.length} friends`}
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.shareChip, sharing && styles.shareChipOn, !liveEnabled && styles.shareChipOff]}
-          onPress={() => {
-            if (sharing) {
-              stopSharing().catch(() => setLocateError('Could not stop sharing.'));
-            } else {
-              startSharing().catch(() => setLocateError('Could not share your location.'));
-            }
-          }}>
-          <Text style={[styles.shareChipText, sharing && styles.shareChipTextOn]}>
-            {sharing ? 'Sharing live' : 'Share live'}
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.shareChip, territoryVisible && styles.shareChipOn]}
-          onPress={() => setTerritoryVisible((current) => !current)}>
-          <Text style={[styles.shareChipText, territoryVisible && styles.shareChipTextOn]}>
-            {territoryVisible ? 'Territory on' : 'Territory off'}
-          </Text>
-        </Pressable>
-      </View>
+      {!searchOpen && (
+        <Animated.View
+          entering={FadeIn.duration(140)}
+          exiting={FadeOut.duration(100)}
+          style={[styles.liveRow, { top: insets.top + 72 }]}>
+          <Pressable style={styles.roomChip} onPress={() => setProfileOpen(true)}>
+            <Text style={styles.roomChipText}>
+              {buddyList.length === 1 ? '1 friend' : `${buddyList.length} friends`}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.shareChip, sharing && styles.shareChipOn, !liveEnabled && styles.shareChipOff]}
+            onPress={() => {
+              if (sharing) {
+                stopSharing().catch(() => setLocateError('Could not stop sharing.'));
+              } else {
+                startSharing().catch(() => setLocateError('Could not share your location.'));
+              }
+            }}>
+            <Text style={[styles.shareChipText, sharing && styles.shareChipTextOn]}>
+              {sharing ? 'Sharing live' : 'Share live'}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.shareChip, territoryVisible && styles.shareChipOn]}
+            onPress={() => setTerritoryVisible((current) => !current)}>
+            <Text style={[styles.shareChipText, territoryVisible && styles.shareChipTextOn]}>
+              {territoryVisible ? 'Territory on' : 'Territory off'}
+            </Text>
+          </Pressable>
+        </Animated.View>
+      )}
       {locateError ? <Text style={[styles.locateError, { color: colors.errorText }]}>{locateError}</Text> : null}
 
       {!sheetOpen && legendOpen && (
@@ -392,13 +406,18 @@ export function MapScreen() {
           entering={ZoomIn.springify().delay(250)}
           exiting={ZoomOut.springify().damping(13).stiffness(260).mass(0.5)}
           style={[styles.fabWrap, { bottom: insets.bottom + 216 }]}>
-          <FAB
-            icon="layers-outline"
+          <Pressable
             accessibilityLabel="Show map categories"
-            style={[styles.fab, { backgroundColor: legendOpen ? colors.textAccent : colors.fabBg }]}
-            color={legendOpen ? colors.background : colors.fabIcon}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.voxelButton, !isDark && styles.voxelButtonLight, pressed && styles.voxelButtonPressed]}
             onPress={() => setLegendOpen((open) => !open)}
-          />
+          >
+            <Image
+              source={require('../../assets/images/control-layers-voxel.png')}
+              contentFit="contain"
+              style={styles.voxelControlIcon}
+            />
+          </Pressable>
         </Animated.View>
       )}
       {!sheetOpen && (
@@ -406,13 +425,22 @@ export function MapScreen() {
           entering={ZoomIn.springify().delay(200)}
           exiting={ZoomOut.springify().damping(13).stiffness(260).mass(0.5)}
           style={[styles.fabWrap, { bottom: insets.bottom + 152 }]}>
-          <FAB
-            icon={isDark ? 'weather-sunny' : 'weather-night'}
-            accessibilityLabel="Toggle theme"
-            style={[styles.fab, { backgroundColor: colors.fabBg }]}
-            color={isDark ? '#FFF9C4' : '#E8E1F4'}
+          <Pressable
+            accessibilityLabel={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.voxelButton, !isDark && styles.voxelButtonLight, pressed && styles.voxelButtonPressed]}
             onPress={toggle}
-          />
+          >
+            <Image
+              source={
+                isDark
+                  ? require('../../assets/images/control-sun-voxel.png')
+                  : require('../../assets/images/control-theme-voxel.png')
+              }
+              contentFit="contain"
+              style={styles.voxelControlIcon}
+            />
+          </Pressable>
         </Animated.View>
       )}
       {!sheetOpen && (
@@ -421,13 +449,18 @@ export function MapScreen() {
           exiting={ZoomOut.springify().damping(11).stiffness(300).mass(0.45)}
           style={[styles.fabWrap, { bottom: insets.bottom + 88 }]}>
           <Animated.View style={addEventPressStyle}>
-            <FAB
-              icon="plus"
+            <Pressable
               accessibilityLabel="Add event"
-              style={[styles.fab, { backgroundColor: colors.fabBg }]}
-              color={colors.fabIcon}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.voxelButton, !isDark && styles.voxelButtonLight, pressed && styles.voxelButtonPressed]}
               onPress={openAddEvent}
-            />
+            >
+              <Image
+                source={require('../../assets/images/control-add-voxel.png')}
+                contentFit="contain"
+                style={styles.voxelControlIcon}
+              />
+            </Pressable>
           </Animated.View>
         </Animated.View>
       )}
@@ -436,15 +469,19 @@ export function MapScreen() {
           entering={ZoomIn.springify().delay(100)}
           exiting={ZoomOut.springify().damping(13).stiffness(260).mass(0.5)}
           style={[styles.fabWrap, { bottom: insets.bottom + 24 }]}>
-          <FAB
-            icon="crosshairs-gps"
+          <Pressable
             accessibilityLabel="Start territory tracking"
-            style={[styles.fab, { backgroundColor: colors.fabBg }]}
-            color={colors.fabIcon}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.voxelButton, !isDark && styles.voxelButtonLight, pressed && styles.voxelButtonPressed]}
             onPress={() => {
               startTrail().catch(() => setLocateError('Could not start territory tracking.'));
-            }}
-          />
+            }}>
+            <Image
+              source={require('../../assets/images/control-locate-voxel.png')}
+              contentFit="contain"
+              style={styles.voxelControlIcon}
+            />
+          </Pressable>
         </Animated.View>
       )}
       <ProfileSheet
@@ -530,6 +567,14 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
+  cornerMark: {
+    position: 'absolute',
+    right: 16,
+    width: 112,
+    height: 109,
+    zIndex: 12,
+    opacity: 0.96,
+  },
   topBar: {
     position: 'absolute',
     top: 0,
@@ -553,7 +598,7 @@ const styles = StyleSheet.create({
   },
   profileInitials: {
     color: '#111',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
   },
   searchSlot: {
@@ -580,7 +625,7 @@ const styles = StyleSheet.create({
   roomChipText: {
     color: '#fff',
     fontWeight: '700',
-    fontSize: 13,
+    fontSize: 11.5,
   },
   shareChip: {
     paddingHorizontal: 12,
@@ -600,7 +645,7 @@ const styles = StyleSheet.create({
   shareChipText: {
     color: '#eee',
     fontWeight: '700',
-    fontSize: 13,
+    fontSize: 11.5,
   },
   shareChipTextOn: {
     color: '#111',
@@ -627,8 +672,33 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 18,
   },
-  fab: {
+  voxelButton: {
+    width: 56,
+    height: 56,
     borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.24)',
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  voxelButtonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.94 }],
+  },
+  voxelButtonLight: {
+    backgroundColor: 'rgba(255,255,255,0.32)',
+    borderColor: 'rgba(255,255,255,0.62)',
+    shadowOpacity: 0.42,
+  },
+  voxelControlIcon: {
+    width: 46,
+    height: 46,
   },
   legendWrap: {
     position: 'absolute',

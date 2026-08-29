@@ -1,6 +1,8 @@
 import { createElement, useEffect, useRef, useState } from 'react';
+import resolveAssetSource from 'expo-image/src/utils/resolveAssetSource.web';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { CATEGORY_PIN_IMAGES } from '@/constants/categoryAssets';
 import { useAppColors } from '@/hooks/use-app-colors';
 import { useThemeMode } from '@/store/ThemeContext';
 
@@ -8,7 +10,7 @@ import { darkMapStyle } from './darkMapStyle';
 import { lightMapStyle } from './lightMapStyle';
 import { loadGoogleMaps } from './loadGoogleMaps.web';
 import type { MapCanvasProps } from './mapTypes';
-import { getIsometricPinSvg, userMarkerSvg } from './pinIcon';
+import { userMarkerSvg } from './pinIcon';
 import { territoryPolygon } from './territory';
 
 type GoogleMap = {
@@ -120,19 +122,21 @@ export default function MapCanvas({
 
     markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current = pins.map((pin) => {
+      const iconUrl = resolveAssetSource(CATEGORY_PIN_IMAGES[pin.category])?.uri;
+      if (!iconUrl) return null;
       const marker = new google.maps.Marker({
         map,
         position: { lat: pin.latitude, lng: pin.longitude },
         title: pin.title,
         icon: {
-          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(getIsometricPinSvg(pin.category))}`,
-          scaledSize: new google.maps.Size(36, 48),
-          anchor: new google.maps.Point(18, 48),
+          url: iconUrl,
+          scaledSize: new google.maps.Size(36, 46),
+          anchor: new google.maps.Point(18, 46),
         },
       });
       marker.addListener('click', () => onPinPressRef.current(pin));
       return marker;
-    });
+    }).filter((marker): marker is GoogleMarker => marker !== null);
 
     return () => {
       markersRef.current.forEach((marker) => marker.setMap(null));

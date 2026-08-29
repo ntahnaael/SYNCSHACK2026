@@ -4,12 +4,12 @@ import { Platform, StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker, Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
 
 import { SYDNEY } from '@/constants/pins';
+import { CATEGORY_PIN_IMAGES } from '@/constants/categoryAssets';
 import { useThemeMode } from '@/store/ThemeContext';
 
 import { darkMapStyle } from './darkMapStyle';
 import { lightMapStyle } from './lightMapStyle';
 import type { MapCanvasProps } from './mapTypes';
-import { getIsometricPinSvg } from './pinIcon';
 import { territoryPolygon } from './territory';
 
 export default function MapCanvas({
@@ -74,7 +74,6 @@ export default function MapCanvas({
         />
       ) : null}
       {pins.map((pin) => {
-        const uri = `data:image/svg+xml;utf8,${encodeURIComponent(getIsometricPinSvg(pin.category))}`;
         return (
           <Marker
             key={pin.id}
@@ -87,7 +86,7 @@ export default function MapCanvas({
             // Keeping updates enabled there ensures event pins render instead of appearing blank.
             tracksViewChanges={Platform.OS === 'ios'}
             anchor={{ x: 0.5, y: 1 }}>
-            <Image source={{ uri }} style={styles.pinImage} contentFit="contain" />
+            <Image source={CATEGORY_PIN_IMAGES[pin.category]} style={styles.pinImage} contentFit="contain" />
           </Marker>
         );
       })}
@@ -122,8 +121,8 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
   },
   pinImage: {
-    width: 48,
-    height: 62,
+    width: 40,
+    height: 50,
   },
   me: {
     width: 36,

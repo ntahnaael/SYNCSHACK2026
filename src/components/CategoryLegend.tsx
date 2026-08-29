@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CATEGORIES } from '@/constants/pins';
 import { useAppColors } from '@/hooks/use-app-colors';
-import { getIsometricBlockOnlySvg } from '@/map/pinIcon';
+import { CATEGORY_LEGEND_IMAGES } from '@/constants/categoryAssets';
 import { useThemeMode } from '@/store/ThemeContext';
 import type { PinCategory } from '@/types';
 
@@ -51,8 +51,6 @@ export function CategoryLegend({ selectedCategory, onSelectCategory }: Props) {
 
       {CATEGORIES.map((cat) => {
         const isSelected = selectedCategory === cat.id;
-        const uri = `data:image/svg+xml;utf8,${encodeURIComponent(getIsometricBlockOnlySvg(cat.id))}`;
-
         return (
           <Pressable
             key={cat.id}
@@ -64,7 +62,7 @@ export function CategoryLegend({ selectedCategory, onSelectCategory }: Props) {
               { opacity: pressed ? 0.72 : 1 },
             ]}>
             <View style={styles.badgeWrap}>
-              <Image source={{ uri }} style={styles.badge} contentFit="contain" />
+              <Image source={CATEGORY_LEGEND_IMAGES[cat.id]} style={styles.badge} contentFit="contain" />
               {isSelected && (
                 <View style={[styles.selectedRing, { borderColor: cat.color }]} />
               )}
