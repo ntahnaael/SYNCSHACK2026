@@ -273,7 +273,7 @@ export function MapScreen() {
         <Animated.View
           entering={FadeIn.duration(180)}
           exiting={FadeOut.duration(140)}
-          style={[styles.legendWrap, { bottom: insets.bottom + 280 }]}>
+          style={[styles.legendWrap, { top: insets.top + 112 }]}>
           <CategoryLegend
             selectedCategory={selectedCategory}
             onSelectCategory={setSelectedCategory}

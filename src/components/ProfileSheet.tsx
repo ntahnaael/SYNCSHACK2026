@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { GlassView } from 'expo-glass-effect';
+import { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -10,8 +10,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
 
 import { PROFILE_COLORS, profileInitials } from '@/constants/profile';
+import { useAppColors } from '@/hooks/use-app-colors';
+import { useThemeMode } from '@/store/ThemeContext';
 import type { Friend, UserProfile } from '@/types';
 
 type Props = {
@@ -42,22 +45,78 @@ export function ProfileSheet({
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [color, setColor] = useState(profile.color);
   const [friendCode, setFriendCode] = useState('');
+  const [closing, setClosing] = useState(false);
+  const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const BackdropContainer = (Platform.OS === 'web' ? View : Animated.View) as typeof Animated.View;
+  const { isDark } = useThemeMode();
+  const colors = useAppColors();
 
   useEffect(() => {
     if (!visible) return;
     setDisplayName(profile.displayName);
     setColor(profile.color);
     setFriendCode('');
+    setClosing(false);
   }, [visible, profile]);
 
+  useEffect(
+    () => () => {
+      if (exitTimer.current) clearTimeout(exitTimer.current);
+    },
+    [],
+  );
+
+  if (!visible) return null;
+
+  function exitThen(action: () => void) {
+    if (closing) return;
+    setClosing(true);
+    exitTimer.current = setTimeout(action, 220);
+  }
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
-          <ScrollView keyboardShouldPersistTaps="handled">
-          <Text style={styles.heading}>Your profile</Text>
+    <View style={[StyleSheet.absoluteFill, { zIndex: 110 }]} pointerEvents="box-none">
+      <BackdropContainer
+        entering={Platform.OS === 'web' ? undefined : FadeIn.duration(320)}
+        exiting={Platform.OS === 'web' ? undefined : FadeOut.duration(220)}
+        style={[
+          StyleSheet.absoluteFill,
+          styles.backdropLayer,
+          { backgroundColor: colors.backdropBg },
+          Platform.OS === 'web' && (closing ? styles.backdropWebExit : styles.backdropWebEnter),
+        ]}>
+        <GlassView glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill}>
+          <Pressable style={styles.backdrop} onPress={() => exitThen(onClose)} />
+        </GlassView>
+      </BackdropContainer>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.keyboardWrap}
+        pointerEvents="box-none">
+        <Animated.View
+          entering={ZoomIn.springify().damping(8).stiffness(180).mass(0.75)}
+          exiting={ZoomOut.duration(170)}
+          style={styles.sheetWrap}>
+          <GlassView
+            glassEffectStyle="regular"
+            colorScheme={isDark ? 'dark' : 'light'}
+            style={[styles.sheet, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
+          <View style={styles.header}>
+            <View>
+              <Text style={[styles.eyebrow, { color: colors.textAccent }]}>YOUR ACCOUNT</Text>
+              <Text style={[styles.heading, { color: colors.text }]}>Your profile</Text>
+            </View>
+            <Pressable
+              accessibilityLabel="Close profile"
+              onPress={() => exitThen(onClose)}
+              style={[styles.closeBtn, { backgroundColor: colors.closeBtnBg }]}>
+              <Text style={[styles.closeText, { color: colors.closeIcon }]}>×</Text>
+            </Pressable>
+          </View>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.content}>
           <View style={styles.previewRow}>
             <View style={[styles.avatar, { backgroundColor: color }]}>
               <Text style={styles.avatarText}>{profileInitials(displayName)}</Text>
@@ -133,52 +192,108 @@ export function ProfileSheet({
             style={styles.saveBtn}
             onPress={() => {
               onSave({ displayName, color });
-              onClose();
+              exitThen(onClose);
             }}>
             <Text style={styles.saveText}>Save</Text>
           </Pressable>
           <Pressable
             style={styles.logoutBtn}
             onPress={() => {
-              onClose();
-              onLogout();
+              exitThen(() => {
+                onClose();
+                onLogout();
+              });
             }}>
             <Text style={styles.logoutText}>Log out</Text>
           </Pressable>
           </ScrollView>
-        </View>
+          </GlassView>
+        </Animated.View>
       </KeyboardAvoidingView>
-    </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardWrap: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    alignItems: 'flex-start',
+    paddingHorizontal: 18,
+    paddingBottom: 24,
+  },
+  sheetWrap: {
+    width: '100%',
+    maxWidth: 520,
+    maxHeight: '86%',
+    transformOrigin: [28, '100%', 0],
+  },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  backdropLayer: {
+    ...(Platform.OS === 'web'
+      ? ({ backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' } as object)
+      : null),
+  },
+  backdropWebEnter: {
+    animationKeyframes: {
+      from: { backgroundColor: 'rgba(0,0,0,0)', backdropFilter: 'blur(0px)' },
+      to: { backgroundColor: 'rgba(0,0,0,0.28)', backdropFilter: 'blur(12px)' },
+    },
+    animationDuration: '320ms',
+    animationTimingFunction: 'cubic-bezier(0.05, 0.7, 0.1, 1)',
+    animationFillMode: 'both',
+  } as any,
+  backdropWebExit: {
+    animationKeyframes: {
+      from: { backgroundColor: 'rgba(0,0,0,0.28)', backdropFilter: 'blur(12px)' },
+      to: { backgroundColor: 'rgba(0,0,0,0)', backdropFilter: 'blur(0px)' },
+    },
+    animationDuration: '220ms',
+    animationTimingFunction: 'cubic-bezier(0.3, 0, 0.8, 0.15)',
+    animationFillMode: 'both',
+  } as any,
+  content: {
+    paddingBottom: 2,
   },
   sheet: {
-    backgroundColor: '#1c1c1c',
-    paddingHorizontal: 20,
-    paddingBottom: 28,
-    paddingTop: 10,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    maxHeight: '88%',
+    maxHeight: '100%',
+    paddingHorizontal: 18,
+    paddingBottom: 18,
+    paddingTop: 18,
+    borderRadius: 28,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
-  handle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#444',
-    marginBottom: 14,
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingHorizontal: 2,
+  },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.2,
   },
   heading: {
-    color: '#fff',
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
-    marginBottom: 14,
+    marginTop: 2,
+  },
+  closeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeText: {
+    fontSize: 32,
+    lineHeight: 34,
+    fontWeight: '300',
   },
   previewRow: {
     flexDirection: 'row',
