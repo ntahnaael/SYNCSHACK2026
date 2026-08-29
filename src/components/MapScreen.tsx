@@ -4,6 +4,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { FAB } from 'react-native-paper';
 import Animated, {
   Easing,
+  FadeIn,
+  FadeOut,
   ZoomIn,
   ZoomOut,
   useAnimatedStyle,
@@ -27,8 +29,9 @@ import { usePins } from '@/store/PinsContext';
 import { useProfile } from '@/store/ProfileContext';
 import { useThemeMode } from '@/store/ThemeContext';
 import { canSeePin } from '@/sync/liveTypes';
-import type { EventPin, LatLng } from '@/types';
+import type { EventPin, LatLng, PinCategory } from '@/types';
 
+import { CategoryLegend } from './CategoryLegend';
 import { PinSheet } from './PinSheet';
 import { ProfileSheet } from './ProfileSheet';
 import { SearchBar } from './SearchBar';
@@ -45,6 +48,8 @@ export function MapScreen() {
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [draft, setDraft] = useState<LatLng | null>(null);
   const [selected, setSelected] = useState<EventPin | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<PinCategory | null>(null);
+  const [legendOpen, setLegendOpen] = useState(false);
   const [locateError, setLocateError] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
@@ -74,8 +79,11 @@ export function MapScreen() {
     [members, friendIds],
   );
   const visiblePins = useMemo(
-    () => pins.filter((pin) => canSeePin(pin, profile.id, friendIds)),
-    [pins, profile.id, friendIds],
+    () => pins.filter((pin) =>
+      canSeePin(pin, profile.id, friendIds) &&
+      (selectedCategory === null || pin.category === selectedCategory),
+    ),
+    [pins, profile.id, friendIds, selectedCategory],
   );
   const isOwner = !selected || !selected.createdById || selected.createdById === profile.id;
 
@@ -261,6 +269,31 @@ export function MapScreen() {
       </View>
       {locateError ? <Text style={[styles.locateError, { color: colors.errorText }]}>{locateError}</Text> : null}
 
+      {!sheetOpen && legendOpen && (
+        <Animated.View
+          entering={FadeIn.duration(180)}
+          exiting={FadeOut.duration(140)}
+          style={[styles.legendWrap, { bottom: insets.bottom + 280 }]}>
+          <CategoryLegend
+            selectedCategory={selectedCategory}
+            onSelectCategory={setSelectedCategory}
+          />
+        </Animated.View>
+      )}
+      {!sheetOpen && (
+        <Animated.View
+          entering={ZoomIn.springify().delay(250)}
+          exiting={ZoomOut.springify().damping(13).stiffness(260).mass(0.5)}
+          style={[styles.fabWrap, { bottom: insets.bottom + 216 }]}>
+          <FAB
+            icon="layers-outline"
+            accessibilityLabel="Show map categories"
+            style={[styles.fab, { backgroundColor: legendOpen ? colors.textAccent : colors.fabBg }]}
+            color={legendOpen ? colors.background : colors.fabIcon}
+            onPress={() => setLegendOpen((open) => !open)}
+          />
+        </Animated.View>
+      )}
       {!sheetOpen && (
         <Animated.View
           entering={ZoomIn.springify().delay(200)}
@@ -481,6 +514,11 @@ const styles = StyleSheet.create({
   },
   fab: {
     borderRadius: 18,
+  },
+  legendWrap: {
+    position: 'absolute',
+    left: 18,
+    zIndex: 30,
   },
   locateError: {
     position: 'absolute',
