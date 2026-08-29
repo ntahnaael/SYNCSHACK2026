@@ -4,25 +4,31 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SYDNEY } from '@/constants/pins';
+import { profileInitials } from '@/constants/profile';
 import { GOOGLE_MAPS_API_KEY } from '@/lib/googleKey';
 import MapCanvas from '@/map/MapCanvas';
 import { usePins } from '@/store/PinsContext';
+import { useProfile } from '@/store/ProfileContext';
 import type { EventPin, LatLng } from '@/types';
 
 import { PinSheet } from './PinSheet';
+import { ProfileSheet } from './ProfileSheet';
 import { SearchBar } from './SearchBar';
 
 export function MapScreen() {
   const insets = useSafeAreaInsets();
   const { pins, addPin, updatePin, deletePin } = usePins();
+  const { profile, saveProfile } = useProfile();
   const [center, setCenter] = useState<LatLng>(SYDNEY);
   const [viewCenter, setViewCenter] = useState<LatLng>(SYDNEY);
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [draft, setDraft] = useState<LatLng | null>(null);
   const [selected, setSelected] = useState<EventPin | null>(null);
   const [locateError, setLocateError] = useState<string | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const sheetOpen = Boolean(draft || selected);
+  const initials = profileInitials(profile.displayName ?? '');
 
   async function locateMe() {
     setLocateError(null);
@@ -60,19 +66,28 @@ export function MapScreen() {
         pins={pins}
         center={center}
         userLocation={userLocation}
+        userColor={profile.color}
+        userInitials={initials}
         onViewChange={setViewCenter}
         onPinPress={(pin) => {
           setDraft(null);
           setSelected(pin);
         }}
       />
-      <View style={{ paddingTop: insets.top }}>
-        <SearchBar
-          onSelect={(coord) => {
-            setCenter(coord);
-            setViewCenter(coord);
-          }}
-        />
+      <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
+        <Pressable
+          style={[styles.profileBtn, { backgroundColor: profile.color }]}
+          onPress={() => setProfileOpen(true)}>
+          <Text style={styles.profileInitials}>{initials}</Text>
+        </Pressable>
+        <View style={styles.searchSlot}>
+          <SearchBar
+            onSelect={(coord) => {
+              setCenter(coord);
+              setViewCenter(coord);
+            }}
+          />
+        </View>
       </View>
       {locateError ? <Text style={styles.locateError}>{locateError}</Text> : null}
       <Pressable
@@ -90,6 +105,12 @@ export function MapScreen() {
         }}>
         <Text style={styles.locateIcon}>◎</Text>
       </Pressable>
+      <ProfileSheet
+        visible={profileOpen}
+        profile={profile}
+        onClose={() => setProfileOpen(false)}
+        onSave={saveProfile}
+      />
       <PinSheet
         visible={sheetOpen}
         pin={selected}
@@ -126,6 +147,35 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: '#111',
+  },
+  topBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 16,
+    gap: 10,
+    pointerEvents: 'box-none',
+  },
+  profileBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  profileInitials: {
+    color: '#111',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  searchSlot: {
+    flex: 1,
   },
   missing: {
     flex: 1,
@@ -177,7 +227,7 @@ const styles = StyleSheet.create({
   },
   locateError: {
     position: 'absolute',
-    top: 84,
+    top: 96,
     left: 20,
     right: 20,
     color: '#ffb4b4',

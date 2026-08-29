@@ -6,7 +6,7 @@ import { categoryMeta } from '@/constants/pins';
 import { darkMapStyle } from './darkMapStyle';
 import { loadGoogleMaps } from './loadGoogleMaps.web';
 import type { MapCanvasProps } from './mapTypes';
-import { pinIconSvg } from './pinIcon';
+import { pinIconSvg, userMarkerSvg } from './pinIcon';
 
 type GoogleMap = {
   panTo: (latLng: { lat: number; lng: number }) => void;
@@ -23,6 +23,8 @@ export default function MapCanvas({
   pins,
   center,
   userLocation,
+  userColor,
+  userInitials,
   onViewChange,
   onPinPress,
 }: MapCanvasProps) {
@@ -124,14 +126,12 @@ export default function MapCanvas({
       map,
       position: { lat: userLocation.latitude, lng: userLocation.longitude },
       icon: {
-        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
-          '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><circle cx="8" cy="8" r="6" fill="#ff3b30" stroke="#fff" stroke-width="2"/></svg>',
-        )}`,
-        scaledSize: new google.maps.Size(16, 16),
-        anchor: new google.maps.Point(8, 8),
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(userMarkerSvg(userColor, userInitials))}`,
+        scaledSize: new google.maps.Size(36, 36),
+        anchor: new google.maps.Point(18, 18),
       },
     });
-  }, [userLocation, ready]);
+  }, [userLocation, userColor, userInitials, ready]);
 
   return (
     <View style={styles.wrap}>

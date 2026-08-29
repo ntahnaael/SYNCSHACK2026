@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
-import MapView, { Circle, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
 import { categoryMeta, SYDNEY } from '@/constants/pins';
 
@@ -11,6 +11,8 @@ export default function MapCanvas({
   pins,
   center,
   userLocation,
+  userColor,
+  userInitials,
   onViewChange,
   onPinPress,
 }: MapCanvasProps) {
@@ -60,13 +62,14 @@ export default function MapCanvas({
         );
       })}
       {userLocation ? (
-        <Circle
-          center={userLocation}
-          radius={28}
-          fillColor="rgba(255, 59, 48, 0.85)"
-          strokeColor="#ff3b30"
-          strokeWidth={2}
-        />
+        <Marker
+          coordinate={userLocation}
+          anchor={{ x: 0.5, y: 0.5 }}
+          zIndex={10}>
+          <View style={[styles.me, { backgroundColor: userColor }]}>
+            <Text style={styles.meText}>{userInitials}</Text>
+          </View>
+        </Marker>
       ) : null}
     </MapView>
   );
@@ -95,5 +98,19 @@ const styles = StyleSheet.create({
     borderTopWidth: 8,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
+  },
+  me: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  meText: {
+    color: '#111',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

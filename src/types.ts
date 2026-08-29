@@ -20,3 +20,10 @@ export type PlaceHit = {
   placeId: string;
   description: string;
 };
+
+export type UserProfile = {
+  id: string;
+  displayName: string;
+  color: string;
+  shareCode: string;
+};
