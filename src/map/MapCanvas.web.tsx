@@ -113,7 +113,7 @@ export default function MapCanvas({
         position: { lat: pin.latitude, lng: pin.longitude },
         title: pin.title,
         icon: {
-          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(pinIconSvg(color))}`,
+          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(pinIconSvg(color, colors.pinCenter))}`,
           scaledSize: new google.maps.Size(36, 48),
           anchor: new google.maps.Point(18, 48),
         },
@@ -126,7 +126,7 @@ export default function MapCanvas({
       markersRef.current.forEach((marker) => marker.setMap(null));
       markersRef.current = [];
     };
-  }, [pins, ready]);
+  }, [colors.pinCenter, pins, ready]);
 
   useEffect(() => {
     const map = mapRef.current;

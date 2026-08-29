@@ -1,8 +1,17 @@
 import * as Location from 'expo-location';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { FAB } from 'react-native-paper';
-import Animated, { ZoomIn, ZoomOut } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  ZoomIn,
+  ZoomOut,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SYDNEY } from '@/constants/pins';
@@ -25,10 +34,39 @@ export function MapScreen() {
   const [draft, setDraft] = useState<LatLng | null>(null);
   const [selected, setSelected] = useState<EventPin | null>(null);
   const [locateError, setLocateError] = useState<string | null>(null);
+  const addEventTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const addEventScale = useSharedValue(1);
   const { isDark, toggle } = useThemeMode();
   const colors = useAppColors();
 
   const sheetOpen = Boolean(draft || selected);
+  const addEventPressStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: addEventScale.value }],
+  }));
+
+  useEffect(
+    () => () => {
+      if (addEventTimer.current) clearTimeout(addEventTimer.current);
+    },
+    [],
+  );
+
+  function openAddEvent() {
+    if (addEventTimer.current) return;
+
+    addEventScale.value = withSequence(
+      withTiming(0.82, { duration: 70, easing: Easing.out(Easing.quad) }),
+      withSpring(1.08, { damping: 7, stiffness: 360, mass: 0.38 }),
+      withSpring(1, { damping: 9, stiffness: 300, mass: 0.42 }),
+    );
+
+    // Let the tactile press response begin before the FAB morphs into the sheet.
+    addEventTimer.current = setTimeout(() => {
+      addEventTimer.current = null;
+      setSelected(null);
+      setDraft(viewCenter);
+    }, 110);
+  }
 
   async function locateMe() {
     setLocateError(null);
@@ -84,36 +122,45 @@ export function MapScreen() {
 
       {/* Theme toggle FAB */}
       {!sheetOpen && (
-        <Animated.View entering={ZoomIn.springify().delay(200)} exiting={ZoomOut} style={[styles.fabWrap, { bottom: insets.bottom + 152 }]}>
+        <Animated.View
+          entering={ZoomIn.springify().delay(200)}
+          exiting={ZoomOut.springify().damping(13).stiffness(260).mass(0.5)}
+          style={[styles.fabWrap, { bottom: insets.bottom + 152 }]}>
           <FAB
             icon={isDark ? 'weather-sunny' : 'weather-night'}
             accessibilityLabel="Toggle theme"
             style={[styles.fab, { backgroundColor: colors.fabBg }]}
             color={isDark ? '#FFF9C4' : '#E8E1F4'}
             onPress={toggle}
-            size="small"
           />
         </Animated.View>
       )}
       {!sheetOpen && (
-        <Animated.View entering={ZoomIn.springify()} exiting={ZoomOut} style={[styles.fabWrap, { bottom: insets.bottom + 88 }]}>
-          <FAB
-            icon="plus"
-            accessibilityLabel="Add event"
-            style={[styles.fab, { backgroundColor: colors.fabBg }]}
-            onPress={() => {
-              setSelected(null);
-              setDraft(viewCenter);
-            }}
-          />
+        <Animated.View
+          entering={ZoomIn.springify()}
+          exiting={ZoomOut.springify().damping(11).stiffness(300).mass(0.45)}
+          style={[styles.fabWrap, { bottom: insets.bottom + 88 }]}>
+          <Animated.View style={addEventPressStyle}>
+            <FAB
+              icon="plus"
+              accessibilityLabel="Add event"
+              style={[styles.fab, { backgroundColor: colors.fabBg }]}
+              color={colors.fabIcon}
+              onPress={openAddEvent}
+            />
+          </Animated.View>
         </Animated.View>
       )}
       {!sheetOpen && (
-        <Animated.View entering={ZoomIn.springify().delay(100)} exiting={ZoomOut} style={[styles.fabWrap, { bottom: insets.bottom + 24 }]}>
+        <Animated.View
+          entering={ZoomIn.springify().delay(100)}
+          exiting={ZoomOut.springify().damping(13).stiffness(260).mass(0.5)}
+          style={[styles.fabWrap, { bottom: insets.bottom + 24 }]}>
           <FAB
             icon="crosshairs-gps"
             accessibilityLabel="Use my location"
             style={[styles.fab, { backgroundColor: colors.fabBg }]}
+            color={colors.fabIcon}
             onPress={() => {
               locateMe().catch(() => setLocateError('Could not read your location.'));
             }}

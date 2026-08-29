@@ -127,7 +127,7 @@ export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, o
         style={[styles.keyboardWrap, { paddingBottom: anchorBottom }]}
         pointerEvents="box-none">
         <Animated.View
-          entering={ZoomIn.springify().damping(13).stiffness(190).mass(0.72)}
+          entering={ZoomIn.springify().damping(8).stiffness(180).mass(0.75)}
           exiting={ZoomOut.duration(170)}
           style={styles.sheetWrap}>
           <GlassView glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={[styles.sheet, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
