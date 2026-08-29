@@ -7,6 +7,7 @@ import { SYDNEY } from '@/constants/pins';
 import { profileInitials } from '@/constants/profile';
 import { GOOGLE_MAPS_API_KEY } from '@/lib/googleKey';
 import MapCanvas from '@/map/MapCanvas';
+import { useAuth } from '@/store/AuthContext';
 import { usePins } from '@/store/PinsContext';
 import { useProfile } from '@/store/ProfileContext';
 import type { EventPin, LatLng } from '@/types';
@@ -18,6 +19,7 @@ import { SearchBar } from './SearchBar';
 export function MapScreen() {
   const insets = useSafeAreaInsets();
   const { pins, addPin, updatePin, deletePin } = usePins();
+  const { signOut } = useAuth();
   const { profile, saveProfile } = useProfile();
   const [center, setCenter] = useState<LatLng>(SYDNEY);
   const [viewCenter, setViewCenter] = useState<LatLng>(SYDNEY);
@@ -110,6 +112,9 @@ export function MapScreen() {
         profile={profile}
         onClose={() => setProfileOpen(false)}
         onSave={saveProfile}
+        onLogout={() => {
+          signOut().catch(() => {});
+        }}
       />
       <PinSheet
         visible={sheetOpen}

@@ -18,9 +18,10 @@ type Props = {
   profile: UserProfile;
   onClose: () => void;
   onSave: (input: Pick<UserProfile, 'displayName' | 'color'>) => void;
+  onLogout: () => void;
 };
 
-export function ProfileSheet({ visible, profile, onClose, onSave }: Props) {
+export function ProfileSheet({ visible, profile, onClose, onSave, onLogout }: Props) {
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [color, setColor] = useState(profile.color);
 
@@ -80,6 +81,14 @@ export function ProfileSheet({ visible, profile, onClose, onSave }: Props) {
               onClose();
             }}>
             <Text style={styles.saveText}>Save</Text>
+          </Pressable>
+          <Pressable
+            style={styles.logoutBtn}
+            onPress={() => {
+              onClose();
+              onLogout();
+            }}>
+            <Text style={styles.logoutText}>Log out</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -197,6 +206,16 @@ const styles = StyleSheet.create({
   },
   saveText: {
     color: '#111',
+    fontWeight: '700',
+  },
+  logoutBtn: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  logoutText: {
+    color: '#ff8a80',
     fontWeight: '700',
   },
 });
