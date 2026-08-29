@@ -1,6 +1,6 @@
 import type { LatLng } from '@/types';
 
-export const TERRITORY_RADIUS_METRES = 18;
+export const TERRITORY_RADIUS_METRES = 15;
 
 const MINIMUM_SOURCE_SPACING_METRES = 5;
 const MAXIMUM_SOURCE_POINTS = 480;
@@ -12,9 +12,9 @@ function distanceBetween(a: LatLng, b: LatLng) {
 }
 
 /**
- * Creates one buffered convex territory from the visited locations. A single
- * polygon keeps its transparent shade uniform instead of darkening where
- * individual coverage circles would overlap.
+ * Creates one buffered territory path from the visited locations. The single
+ * polygon keeps its transparent shade uniform and follows turns in the route,
+ * rather than filling the shortcut inside an L-shaped walk.
  */
 export function territoryPolygon(points: LatLng[]) {
   const spaced: LatLng[] = [];
@@ -30,8 +30,29 @@ export function territoryPolygon(points: LatLng[]) {
       ? spaced
       : spaced.filter((_, index) => index % Math.ceil(spaced.length / MAXIMUM_SOURCE_POINTS) === 0 || index === spaced.length - 1);
 
-  const buffered = sources.flatMap((point) => bufferedRing(point));
-  return convexHull(buffered);
+  if (sources.length < 2) return sources.flatMap((point) => bufferedRing(point));
+  return bufferedPath(roundCorners(sources));
+}
+
+function roundCorners(points: LatLng[]) {
+  if (points.length < 3) return points;
+  const rounded: LatLng[] = [points[0]];
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+    const next = points[index + 1];
+    // Cut the inside of each turn into a short curve before buffering it.
+    rounded.push(blend(previous, current, 0.76), blend(current, next, 0.24));
+  }
+  rounded.push(points[points.length - 1]);
+  return rounded;
+}
+
+function blend(a: LatLng, b: LatLng, amount: number): LatLng {
+  return {
+    latitude: a.latitude + (b.latitude - a.latitude) * amount,
+    longitude: a.longitude + (b.longitude - a.longitude) * amount,
+  };
 }
 
 function bufferedRing(point: LatLng) {
@@ -46,21 +67,32 @@ function bufferedRing(point: LatLng) {
   });
 }
 
-function convexHull(points: LatLng[]) {
-  if (points.length < 3) return points;
-  const sorted = [...points].sort((a, b) => a.longitude - b.longitude || a.latitude - b.latitude);
-  const cross = (origin: LatLng, a: LatLng, b: LatLng) =>
-    (a.longitude - origin.longitude) * (b.latitude - origin.latitude) -
-    (a.latitude - origin.latitude) * (b.longitude - origin.longitude);
-  const buildHalf = (input: LatLng[]) => {
-    const half: LatLng[] = [];
-    for (const point of input) {
-      while (half.length >= 2 && cross(half[half.length - 2], half[half.length - 1], point) <= 0) half.pop();
-      half.push(point);
-    }
-    return half;
+function bufferedPath(points: LatLng[]) {
+  const latitudeRadius = TERRITORY_RADIUS_METRES / 111_111;
+  const normalAt = (index: number) => {
+    const previous = points[Math.max(0, index - 1)];
+    const next = points[Math.min(points.length - 1, index + 1)];
+    const dx = (next.longitude - previous.longitude) * Math.cos((points[index].latitude * Math.PI) / 180);
+    const dy = next.latitude - previous.latitude;
+    const length = Math.hypot(dx, dy) || 1;
+    // Perpendicular in a locally projected coordinate plane.
+    return { x: -dy / length, y: dx / length };
   };
-  const lower = buildHalf(sorted);
-  const upper = buildHalf([...sorted].reverse());
-  return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+
+  const left: LatLng[] = [];
+  const right: LatLng[] = [];
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index];
+    const normal = normalAt(index);
+    const longitudeRadius = TERRITORY_RADIUS_METRES / (111_111 * Math.cos((point.latitude * Math.PI) / 180));
+    left.push({
+      latitude: point.latitude + normal.y * latitudeRadius,
+      longitude: point.longitude + normal.x * longitudeRadius,
+    });
+    right.push({
+      latitude: point.latitude - normal.y * latitudeRadius,
+      longitude: point.longitude - normal.x * longitudeRadius,
+    });
+  }
+  return [...left, ...right.reverse()];
 }

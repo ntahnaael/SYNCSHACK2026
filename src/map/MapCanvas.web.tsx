@@ -31,7 +31,9 @@ export default function MapCanvas({
   pins,
   center,
   userLocation,
-  territory,
+  territory = [],
+  rivalTerritory = [],
+  showTerritory,
   userColor,
   userInitials,
   friends = [],
@@ -44,6 +46,7 @@ export default function MapCanvas({
   const userMarkerRef = useRef<GoogleMarker | null>(null);
   const friendMarkersRef = useRef<GoogleMarker[]>([]);
   const territoryPolygonRef = useRef<GooglePolygon | null>(null);
+  const rivalTerritoryPolygonRef = useRef<GooglePolygon | null>(null);
   const onViewChangeRef = useRef(onViewChange);
   const onPinPressRef = useRef(onPinPress);
   const [error, setError] = useState<string | null>(null);
@@ -160,25 +163,42 @@ export default function MapCanvas({
     const google = window.google;
     if (!ready || !map || !google) return;
 
-    territoryPolygonRef.current?.setMap(null);
-    territoryPolygonRef.current = null;
-    const shape = territoryPolygon(territory);
-    if (shape.length < 3) return;
-    territoryPolygonRef.current = new google.maps.Polygon({
+    const drawTerritory = (
+      ref: { current: GooglePolygon | null },
+      points: typeof territory,
+      color: string,
+      fillOpacity: number,
+      holes: Array<typeof territory> = [],
+    ) => {
+      ref.current?.setMap(null);
+      ref.current = null;
+      const shape = territoryPolygon(points);
+      if (shape.length < 3) return;
+      ref.current = new google.maps.Polygon({
         map,
-        paths: shape.map((point) => ({ lat: point.latitude, lng: point.longitude })),
-        strokeColor: '#49bbff',
-        strokeOpacity: 0.24,
+        paths: [
+          shape.map((point) => ({ lat: point.latitude, lng: point.longitude })),
+          ...holes
+            .filter((hole) => hole.length > 2)
+            .map((hole) => [...hole].reverse().map((point) => ({ lat: point.latitude, lng: point.longitude }))),
+        ],
+        strokeColor: color,
+        strokeOpacity: fillOpacity === 0 ? 0 : fillOpacity + 0.1,
         strokeWeight: 1,
-        fillColor: '#49bbff',
-        fillOpacity: 0.18,
+        fillColor: color,
+        fillOpacity,
       });
+    };
+    drawTerritory(territoryPolygonRef, territory, '#49bbff', showTerritory ? 0.18 : 0, [rivalTerritory]);
+    drawTerritory(rivalTerritoryPolygonRef, rivalTerritory, '#ff453a', showTerritory ? 0.24 : 0);
 
     return () => {
       territoryPolygonRef.current?.setMap(null);
       territoryPolygonRef.current = null;
+      rivalTerritoryPolygonRef.current?.setMap(null);
+      rivalTerritoryPolygonRef.current = null;
     };
-  }, [territory, ready]);
+  }, [territory, rivalTerritory, showTerritory, ready]);
 
   useEffect(() => {
     const map = mapRef.current;

@@ -16,7 +16,9 @@ export default function MapCanvas({
   pins,
   center,
   userLocation,
-  territory,
+  territory = [],
+  rivalTerritory = [],
+  showTerritory,
   userColor,
   userInitials,
   friends = [],
@@ -26,6 +28,7 @@ export default function MapCanvas({
   const mapRef = useRef<MapView>(null);
   const { isDark } = useThemeMode();
   const territoryShape = territoryPolygon(territory);
+  const rivalTerritoryShape = territoryPolygon(rivalTerritory);
 
   useEffect(() => {
     mapRef.current?.animateToRegion(
@@ -54,10 +57,20 @@ export default function MapCanvas({
       {territoryShape.length > 2 ? (
         <Polygon
           coordinates={territoryShape}
-          fillColor="rgba(73, 187, 255, 0.18)"
-          strokeColor="rgba(73, 187, 255, 0.24)"
+          holes={rivalTerritoryShape.length > 2 ? [rivalTerritoryShape] : undefined}
+          fillColor={showTerritory ? 'rgba(73, 187, 255, 0.18)' : 'rgba(0, 0, 0, 0)'}
+          strokeColor={showTerritory ? 'rgba(73, 187, 255, 0.24)' : 'rgba(0, 0, 0, 0)'}
           strokeWidth={1}
           zIndex={1}
+        />
+      ) : null}
+      {rivalTerritoryShape.length > 2 ? (
+        <Polygon
+          coordinates={rivalTerritoryShape}
+          fillColor={showTerritory ? 'rgba(255, 69, 58, 0.24)' : 'rgba(0, 0, 0, 0)'}
+          strokeColor={showTerritory ? 'rgba(255, 69, 58, 0.34)' : 'rgba(0, 0, 0, 0)'}
+          strokeWidth={1}
+          zIndex={2}
         />
       ) : null}
       {pins.map((pin) => {

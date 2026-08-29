@@ -14,6 +14,8 @@ export type MapCanvasProps = {
   center: LatLng;
   userLocation: LatLng | null;
   territory: LatLng[];
+  rivalTerritory: LatLng[];
+  showTerritory: boolean;
   userColor: string;
   userInitials: string;
   friends: FriendMarker[];

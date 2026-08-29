@@ -70,10 +70,12 @@ export function MapScreen() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [trail, setTrail] = useState<LatLng[]>([]);
+  const [territoryVisible, setTerritoryVisible] = useState(true);
+  const [rivalTerritory, setRivalTerritory] = useState<LatLng[]>([]);
   const [trailReady, setTrailReady] = useState(false);
-  const [trackingTrail, setTrackingTrail] = useState(false);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
   const trailWatchRef = useRef<Location.LocationSubscription | null>(null);
+  const activeTerritoryRef = useRef<'blue' | 'red'>('blue');
   const addEventTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const addEventScale = useSharedValue(1);
   const { isDark, toggle } = useThemeMode();
@@ -233,18 +235,30 @@ export function MapScreen() {
     setSharing(true);
   }
 
+  function appendPoint(current: LatLng[], coord: LatLng) {
+    const previous = current.at(-1);
+    if (previous && distanceBetween(previous, coord) < MIN_TRAIL_DISTANCE_METRES) return current;
+    return [...current, coord];
+  }
+
   function appendTrail(coord: LatLng) {
-    setTrail((current) => {
-      const previous = current.at(-1);
-      if (previous && distanceBetween(previous, coord) < MIN_TRAIL_DISTANCE_METRES) return current;
-      return [...current, coord];
-    });
+    if (activeTerritoryRef.current === 'red') {
+      setRivalTerritory((current) => appendPoint(current, coord));
+      return;
+    }
+    setTrail((current) => appendPoint(current, coord));
   }
 
   function stopTrail() {
     trailWatchRef.current?.remove();
     trailWatchRef.current = null;
-    setTrackingTrail(false);
+  }
+
+  function resetTerritory() {
+    activeTerritoryRef.current = 'blue';
+    setTrail([]);
+    setRivalTerritory([]);
+    AsyncStorage.removeItem(trailStorageKey).catch(() => {});
   }
 
   async function startTrail() {
@@ -282,24 +296,6 @@ export function MapScreen() {
         appendTrail(coord);
       },
     );
-    setTrackingTrail(true);
-  }
-
-  async function locateMe() {
-    setLocateError(null);
-    const permission = await Location.requestForegroundPermissionsAsync();
-    if (permission.status !== 'granted') {
-      setLocateError('Location permission is needed to find you.');
-      return;
-    }
-    const position = await Location.getCurrentPositionAsync({});
-    const next = {
-      latitude: position.coords.latitude,
-      longitude: position.coords.longitude,
-    };
-    setUserLocation(next);
-    setCenter(next);
-    setViewCenter(next);
   }
 
   if (!GOOGLE_MAPS_API_KEY) {
@@ -324,6 +320,8 @@ export function MapScreen() {
         center={center}
         userLocation={userLocation}
         territory={trail}
+        rivalTerritory={rivalTerritory}
+        showTerritory={territoryVisible}
         userColor={profile.color}
         userInitials={initials}
         friends={liveMarkers}
@@ -369,16 +367,10 @@ export function MapScreen() {
           </Text>
         </Pressable>
         <Pressable
-          style={[styles.shareChip, trackingTrail && styles.shareChipOn]}
-          onPress={() => {
-            if (trackingTrail) {
-              stopTrail();
-            } else {
-              startTrail().catch(() => setLocateError('Could not start territory tracking.'));
-            }
-          }}>
-          <Text style={[styles.shareChipText, trackingTrail && styles.shareChipTextOn]}>
-            {trackingTrail ? 'Territory on' : trail.length > 1 ? 'Resume territory' : 'Mark territory'}
+          style={[styles.shareChip, territoryVisible && styles.shareChipOn]}
+          onPress={() => setTerritoryVisible((current) => !current)}>
+          <Text style={[styles.shareChipText, territoryVisible && styles.shareChipTextOn]}>
+            {territoryVisible ? 'Territory on' : 'Territory off'}
           </Text>
         </Pressable>
       </View>
@@ -446,11 +438,11 @@ export function MapScreen() {
           style={[styles.fabWrap, { bottom: insets.bottom + 24 }]}>
           <FAB
             icon="crosshairs-gps"
-            accessibilityLabel="Use my location"
+            accessibilityLabel="Start territory tracking"
             style={[styles.fab, { backgroundColor: colors.fabBg }]}
             color={colors.fabIcon}
             onPress={() => {
-              locateMe().catch(() => setLocateError('Could not read your location.'));
+              startTrail().catch(() => setLocateError('Could not start territory tracking.'));
             }}
           />
         </Animated.View>
@@ -462,6 +454,12 @@ export function MapScreen() {
         friends={buddyList}
         friendError={friendError}
         onAddFriend={(code) => {
+          if (code.trim().toUpperCase() === 'CHANGE COLOUR') {
+            activeTerritoryRef.current = 'red';
+            if (userLocation) setRivalTerritory((current) => appendPoint(current, userLocation));
+            setTerritoryVisible(true);
+            return;
+          }
           addFriend(code).catch(() => {});
         }}
         onRemoveFriend={(id) => {
@@ -474,6 +472,7 @@ export function MapScreen() {
           stopTrail();
           signOut().catch(() => {});
         }}
+        onResetTerritory={resetTerritory}
       />
       <PinSheet
         visible={sheetOpen}
