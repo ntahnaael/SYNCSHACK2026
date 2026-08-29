@@ -127,20 +127,20 @@ export function ProfileSheet({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.content}>
           <View style={styles.previewRow}>
-            <View style={[styles.avatar, { backgroundColor: color }]}>
+            <View style={[styles.avatar, { backgroundColor: color, borderColor: colors.surfaceBorder }]}>
               <Text style={styles.avatarText}>{profileInitials(displayName)}</Text>
             </View>
-            <Text style={styles.previewHint}>This is how you show up on the map.</Text>
+            <Text style={[styles.previewHint, { color: colors.textMuted }]}>This is how you show up on the map.</Text>
           </View>
           <TextInput
             value={displayName}
             onChangeText={setDisplayName}
             placeholder="Your name"
-            placeholderTextColor="#777"
-            style={styles.input}
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }]}
             autoCapitalize="words"
           />
-          <Text style={styles.label}>Color</Text>
+          <Text style={[styles.label, { color: colors.textMuted }]}>Color</Text>
           <View style={styles.colors}>
             {PROFILE_COLORS.map((item) => {
               const selected = item === color;
@@ -153,56 +153,56 @@ export function ProfileSheet({
                   style={[
                     styles.swatch,
                     { backgroundColor: item },
-                    selected && styles.swatchSelected,
+                    selected && [styles.swatchSelected, { borderColor: colors.text }],
                   ]}
                 />
               );
             })}
           </View>
-          <Text style={styles.label}>Your friend code</Text>
-          <View style={styles.codeBox}>
-            <Text style={styles.code}>{profile.shareCode}</Text>
+          <Text style={[styles.label, { color: colors.textMuted }]}>Your friend code</Text>
+          <View style={[styles.codeBox, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}>
+            <Text style={[styles.code, { color: colors.text }]}>{profile.shareCode}</Text>
           </View>
-          <Text style={styles.codeHint}>
+          <Text style={[styles.codeHint, { color: colors.textMuted }]}>
             {liveEnabled
               ? 'Friends add this code to see your private events and live location. Public events are open to everyone.'
               : 'Add Firebase keys in .env to sync friends, events, and location.'}
           </Text>
-          <Text style={styles.label}>Friends</Text>
-          <Text style={styles.codeHint}>
+          <Text style={[styles.label, { color: colors.textMuted }]}>Friends</Text>
+          <Text style={[styles.codeHint, { color: colors.textMuted }]}>
             Add people by their friend code. You’ll see their private pins; everyone sees public pins.
           </Text>
           <TextInput
             value={friendCode}
             onChangeText={setFriendCode}
             placeholder="Add a friend by code"
-            placeholderTextColor="#777"
-            style={styles.input}
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }]}
             autoCapitalize="characters"
             autoCorrect={false}
           />
-          {friendError ? <Text style={styles.joinError}>{friendError}</Text> : null}
+          {friendError ? <Text style={[styles.joinError, { color: colors.errorText }]}>{friendError}</Text> : null}
           <Pressable
-            style={styles.joinBtn}
+            style={[styles.joinBtn, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}
             onPress={() => {
               onAddFriend(friendCode);
               setFriendCode('');
             }}>
-            <Text style={styles.joinText}>Add friend</Text>
+            <Text style={[styles.joinText, { color: colors.text }]}>Add friend</Text>
           </Pressable>
           {friends.map((friend) => (
             <View key={friend.id} style={styles.friendRow}>
               <View style={[styles.friendDot, { backgroundColor: friend.color }]} />
-              <Text style={styles.friendName}>{friend.displayName || friend.shareCode}</Text>
+              <Text style={[styles.friendName, { color: colors.textSecondary }]}>{friend.displayName || friend.shareCode}</Text>
               <Pressable onPress={() => onRemoveFriend(friend.id)}>
-                <Text style={styles.removeFriend}>Remove</Text>
+                <Text style={[styles.removeFriend, { color: colors.deleteText }]}>Remove</Text>
               </Pressable>
             </View>
           ))}
           <Pressable
-            style={styles.saveBtn}
+            style={[styles.saveBtn, { backgroundColor: colors.saveBg }]}
             onPress={saveAndClose}>
-            <Text style={styles.saveText}>Save</Text>
+            <Text style={[styles.saveText, { color: colors.saveText }]}>Save</Text>
           </Pressable>
           <Pressable
             style={styles.logoutBtn}
@@ -212,10 +212,10 @@ export function ProfileSheet({
                 onLogout();
               });
             }}>
-            <Text style={styles.logoutText}>Log out</Text>
+            <Text style={[styles.logoutText, { color: colors.deleteText }]}>Log out</Text>
           </Pressable>
-          <Pressable style={styles.resetTerritoryBtn} onPress={onResetTerritory}>
-            <Text style={styles.resetTerritoryText}>Reset territory</Text>
+          <Pressable style={[styles.resetTerritoryBtn, { borderColor: colors.deleteText }]} onPress={onResetTerritory}>
+            <Text style={[styles.resetTerritoryText, { color: colors.deleteText }]}>Reset territory</Text>
           </Pressable>
           </ScrollView>
           </GlassView>
@@ -333,16 +333,14 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   input: {
-    backgroundColor: '#2a2a2a',
-    color: '#fff',
     borderRadius: 12,
+    borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginBottom: 10,
     fontSize: 16,
   },
   label: {
-    color: '#aaa',
     marginBottom: 8,
     marginTop: 4,
   },
@@ -360,41 +358,36 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   swatchSelected: {
-    borderColor: '#fff',
   },
   codeBox: {
-    backgroundColor: '#2a2a2a',
     borderRadius: 12,
+    borderWidth: 1,
     paddingVertical: 12,
     alignItems: 'center',
     marginBottom: 8,
   },
   code: {
-    color: '#fff',
     fontSize: 22,
     fontWeight: '700',
     letterSpacing: 4,
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
   },
   codeHint: {
-    color: '#888',
     fontSize: 13,
     marginBottom: 12,
   },
   joinError: {
-    color: '#ffb4b4',
     fontSize: 13,
     marginBottom: 8,
   },
   joinBtn: {
     paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: '#2a2a2a',
+    borderWidth: 1,
     alignItems: 'center',
     marginBottom: 16,
   },
   joinText: {
-    color: '#fff',
     fontWeight: '700',
   },
   friendRow: {
@@ -410,22 +403,18 @@ const styles = StyleSheet.create({
   },
   friendName: {
     flex: 1,
-    color: '#eee',
     fontSize: 15,
   },
   removeFriend: {
-    color: '#ff8a80',
     fontSize: 13,
     fontWeight: '600',
   },
   saveBtn: {
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: '#fff',
     alignItems: 'center',
   },
   saveText: {
-    color: '#111',
     fontWeight: '700',
   },
   logoutBtn: {
@@ -435,7 +424,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   logoutText: {
-    color: '#ff8a80',
     fontWeight: '700',
   },
   resetTerritoryBtn: {
@@ -444,10 +432,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 2,
     borderWidth: 1,
-    borderColor: 'rgba(255,138,128,0.45)',
   },
   resetTerritoryText: {
-    color: '#ffb4b4',
     fontWeight: '700',
   },
 });

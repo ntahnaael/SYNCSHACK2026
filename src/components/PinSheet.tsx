@@ -256,7 +256,7 @@ export function PinSheet({
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.form}>
               {(pin || coord) ? (
-                <View style={[styles.eventHeroFrame, { width: heroWidth, height: heroHeight }]}>
+                <View style={[styles.eventHeroFrame, { width: heroWidth, height: heroHeight, backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}>
                   {photoUri ? (
                     <Image
                       source={{ uri: photoUri }}
@@ -267,9 +267,9 @@ export function PinSheet({
                   ) : <Text style={[styles.noPhotoText, { color: colors.textMuted }]}>No event photo yet</Text>}
                   {canEdit ? (
                     <Pressable
-                      style={styles.heroEditButton}
+                      style={[styles.heroEditButton, { backgroundColor: colors.surface, borderColor: colors.textLink }]}
                       onPress={() => { choosePhoto().catch(() => {}); }}>
-                      <Text style={styles.photoButtonText}>{photoUri ? 'Change photo' : '+ Add photo'}</Text>
+                      <Text style={[styles.photoButtonText, { color: colors.textLink }]}>{photoUri ? 'Change photo' : '+ Add photo'}</Text>
                     </Pressable>
                   ) : null}
                 </View>
@@ -547,7 +547,7 @@ const styles = StyleSheet.create({
   eventHeroFrame: {
     alignSelf: 'center',
     borderRadius: 16,
-    backgroundColor: '#111',
+    borderWidth: 1,
     overflow: 'hidden',
     marginBottom: 16,
     alignItems: 'center',
@@ -558,7 +558,6 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   noPhotoText: {
-    color: '#9AA5B5',
     fontSize: 15,
   },
   heroEditButton: {
@@ -566,11 +565,9 @@ const styles = StyleSheet.create({
     right: 14,
     bottom: 14,
     borderWidth: 1,
-    borderColor: '#8ab4ff',
     borderRadius: 10,
     paddingHorizontal: 13,
     paddingVertical: 10,
-    backgroundColor: 'rgba(17,17,17,0.88)',
   },
   input: {
     borderRadius: 16,
@@ -627,7 +624,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   photoButtonText: {
-    color: '#8ab4ff',
     fontWeight: '600',
   },
   label: {
