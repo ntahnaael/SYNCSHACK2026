@@ -18,17 +18,27 @@ export async function searchPlaces(query: string): Promise<PlaceHit[]> {
   }));
 }
 
-export async function getPlaceLocation(placeId: string): Promise<LatLng | null> {
+export async function getPlaceLocation(
+  placeId: string,
+): Promise<(LatLng & { name: string }) | null> {
   if (!GOOGLE_MAPS_API_KEY) return null;
   const url = new URL('https://maps.googleapis.com/maps/api/place/details/json');
   url.searchParams.set('place_id', placeId);
-  url.searchParams.set('fields', 'geometry');
+  url.searchParams.set('fields', 'geometry,name,formatted_address');
   url.searchParams.set('key', GOOGLE_MAPS_API_KEY);
   const response = await fetch(url.toString());
   const data = (await response.json()) as {
-    result?: { geometry?: { location?: { lat: number; lng: number } } };
+    result?: {
+      name?: string;
+      formatted_address?: string;
+      geometry?: { location?: { lat: number; lng: number } };
+    };
   };
   const location = data.result?.geometry?.location;
   if (!location) return null;
-  return { latitude: location.lat, longitude: location.lng };
+  return {
+    latitude: location.lat,
+    longitude: location.lng,
+    name: data.result?.formatted_address ?? data.result?.name ?? '',
+  };
 }

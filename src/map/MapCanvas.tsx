@@ -11,7 +11,7 @@ export default function MapCanvas({
   pins,
   center,
   userLocation,
-  onMapPress,
+  onViewChange,
   onPinPress,
 }: MapCanvasProps) {
   const mapRef = useRef<MapView>(null);
@@ -35,7 +35,9 @@ export default function MapCanvas({
       provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
       customMapStyle={darkMapStyle}
       initialRegion={SYDNEY}
-      onPress={(event) => onMapPress(event.nativeEvent.coordinate)}
+      onRegionChangeComplete={(region) =>
+        onViewChange({ latitude: region.latitude, longitude: region.longitude })
+      }
       showsCompass={false}
       toolbarEnabled={false}>
       {pins.map((pin) => {

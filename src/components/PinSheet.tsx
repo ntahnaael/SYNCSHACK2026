@@ -1,3 +1,4 @@
+import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -11,7 +12,8 @@ import {
 } from 'react-native';
 
 import { CATEGORIES } from '@/constants/pins';
-import type { EventPin, LatLng, PinCategory } from '@/types';
+import { getPlaceLocation, searchPlaces } from '@/map/searchPlaces';
+import type { EventPin, LatLng, PinCategory, PlaceHit } from '@/types';
 
 type Props = {
   visible: boolean;
@@ -26,6 +28,10 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [time, setTime] = useState('');
+  const [place, setPlace] = useState('');
+  const [picked, setPicked] = useState<LatLng | null>(null);
+  const [hits, setHits] = useState<PlaceHit[]>([]);
+  const [locateHint, setLocateHint] = useState<string | null>(null);
   const [category, setCategory] = useState<PinCategory>('hangout');
 
   useEffect(() => {
@@ -33,11 +39,44 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
     setTitle(pin?.title ?? '');
     setNotes(pin?.notes ?? '');
     setTime(pin?.time ?? '');
+    setPlace(pin?.place ?? '');
+    setPicked(pin ?? coord);
+    setHits([]);
+    setLocateHint(null);
     setCategory(pin?.category ?? 'hangout');
-  }, [visible, pin]);
+  }, [visible, pin, coord]);
 
-  const location = pin ?? coord;
-  if (!location) return null;
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      if (place.trim().length < 2) {
+        setHits([]);
+        return;
+      }
+      if (pin?.place && place === pin.place) return;
+      searchPlaces(place)
+        .then(setHits)
+        .catch(() => setHits([]));
+    }, 280);
+    return () => clearTimeout(handle);
+  }, [place, pin?.place]);
+
+  if (!visible || (!pin && !coord)) return null;
+
+  async function useMyLocation() {
+    setLocateHint(null);
+    const permission = await Location.requestForegroundPermissionsAsync();
+    if (permission.status !== 'granted') {
+      setLocateHint('Location permission is needed.');
+      return;
+    }
+    const position = await Location.getCurrentPositionAsync({});
+    setPicked({
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+    });
+    setPlace('My location');
+    setHits([]);
+  }
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -45,7 +84,7 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.sheet}>
           <View style={styles.handle} />
-          <Text style={styles.heading}>{pin ? 'Edit pin' : 'New pin'}</Text>
+          <Text style={styles.heading}>{pin ? 'Edit event' : 'New event'}</Text>
           <TextInput
             value={title}
             onChangeText={setTitle}
@@ -53,6 +92,41 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
             placeholderTextColor="#777"
             style={styles.input}
           />
+          <TextInput
+            value={place}
+            onChangeText={(value) => {
+              setPlace(value);
+              setPicked(null);
+            }}
+            placeholder="Location"
+            placeholderTextColor="#777"
+            style={styles.input}
+          />
+          {hits.length > 0 ? (
+            <View style={styles.dropdown}>
+              {hits.slice(0, 5).map((hit) => (
+                <Pressable
+                  key={hit.placeId}
+                  style={styles.hit}
+                  onPress={async () => {
+                    const result = await getPlaceLocation(hit.placeId);
+                    if (!result) return;
+                    setPlace(result.name || hit.description);
+                    setPicked(result);
+                    setHits([]);
+                  }}>
+                  <Text style={styles.hitText}>{hit.description}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+          <Pressable
+            onPress={() => {
+              useMyLocation().catch(() => setLocateHint('Could not read your location.'));
+            }}>
+            <Text style={styles.useMine}>Use my location</Text>
+          </Pressable>
+          {locateHint ? <Text style={styles.locateHint}>{locateHint}</Text> : null}
           <TextInput
             value={time}
             onChangeText={setTime}
@@ -96,17 +170,18 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
               <View style={styles.flex} />
             )}
             <Pressable
-              style={styles.saveBtn}
+              style={[styles.saveBtn, (!title.trim() || !place.trim() || !picked) && styles.saveDisabled]}
               onPress={() => {
-                if (!title.trim()) return;
+                if (!title.trim() || !place.trim() || !picked) return;
                 onSave({
                   id: pin?.id,
                   title: title.trim(),
                   notes: notes.trim(),
                   time: time.trim(),
+                  place: place.trim(),
                   category,
-                  latitude: location.latitude,
-                  longitude: location.longitude,
+                  latitude: picked.latitude,
+                  longitude: picked.longitude,
                 });
               }}>
               <Text style={styles.saveText}>Save</Text>
@@ -157,6 +232,33 @@ const styles = StyleSheet.create({
   notes: {
     minHeight: 72,
     textAlignVertical: 'top',
+  },
+  dropdown: {
+    marginTop: -6,
+    marginBottom: 10,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#2a2a2a',
+  },
+  hit: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#3a3a3a',
+  },
+  hitText: {
+    color: '#eee',
+    fontSize: 14,
+  },
+  useMine: {
+    color: '#8ab4ff',
+    marginBottom: 10,
+    fontSize: 14,
+  },
+  locateHint: {
+    color: '#ffb4b4',
+    marginBottom: 10,
+    fontSize: 13,
   },
   label: {
     color: '#aaa',
@@ -212,6 +314,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#fff',
     alignItems: 'center',
+  },
+  saveDisabled: {
+    opacity: 0.4,
   },
   saveText: {
     color: '#111',

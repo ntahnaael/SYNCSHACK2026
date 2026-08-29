@@ -18,18 +18,24 @@ export async function searchPlaces(query: string): Promise<PlaceHit[]> {
   });
 }
 
-export async function getPlaceLocation(placeId: string): Promise<LatLng | null> {
+export async function getPlaceLocation(
+  placeId: string,
+): Promise<(LatLng & { name: string }) | null> {
   await loadGoogleMaps();
   const node = document.createElement('div');
   const service = new window.google!.maps.places.PlacesService(node);
   return new Promise((resolve) => {
-    service.getDetails({ placeId, fields: ['geometry'] }, (place) => {
+    service.getDetails({ placeId, fields: ['geometry', 'name', 'formatted_address'] }, (place) => {
       const location = place?.geometry?.location;
       if (!location) {
         resolve(null);
         return;
       }
-      resolve({ latitude: location.lat(), longitude: location.lng() });
+      resolve({
+        latitude: location.lat(),
+        longitude: location.lng(),
+        name: place.formatted_address ?? place.name ?? '',
+      });
     });
   });
 }

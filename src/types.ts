@@ -4,6 +4,7 @@ export type EventPin = {
   id: string;
   title: string;
   notes: string;
+  place: string;
   latitude: number;
   longitude: number;
   category: PinCategory;

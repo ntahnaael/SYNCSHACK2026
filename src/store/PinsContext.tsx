@@ -27,7 +27,8 @@ export function PinsProvider({ children }: { children: ReactNode }) {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (cancelled) return;
         if (raw) {
-          setPins(JSON.parse(raw) as EventPin[]);
+          const parsed = JSON.parse(raw) as EventPin[];
+          setPins(parsed.map((item) => ({ ...item, place: item.place ?? '' })));
         } else {
           setPins(SEED_PINS);
           await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(SEED_PINS));

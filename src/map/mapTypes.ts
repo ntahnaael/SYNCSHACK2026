@@ -4,6 +4,6 @@ export type MapCanvasProps = {
   pins: EventPin[];
   center: LatLng;
   userLocation: LatLng | null;
-  onMapPress: (coord: LatLng) => void;
+  onViewChange: (coord: LatLng) => void;
   onPinPress: (pin: EventPin) => void;
 };

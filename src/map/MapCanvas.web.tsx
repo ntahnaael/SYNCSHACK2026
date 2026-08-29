@@ -10,7 +10,8 @@ import { pinIconSvg } from './pinIcon';
 
 type GoogleMap = {
   panTo: (latLng: { lat: number; lng: number }) => void;
-  addListener: (event: string, handler: (e: { latLng?: { lat: () => number; lng: () => number } }) => void) => void;
+  getCenter: () => { lat: () => number; lng: () => number } | undefined;
+  addListener: (event: string, handler: (e?: { latLng?: { lat: () => number; lng: () => number } }) => void) => void;
 };
 
 type GoogleMarker = {
@@ -22,19 +23,19 @@ export default function MapCanvas({
   pins,
   center,
   userLocation,
-  onMapPress,
+  onViewChange,
   onPinPress,
 }: MapCanvasProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<GoogleMap | null>(null);
   const markersRef = useRef<GoogleMarker[]>([]);
   const userMarkerRef = useRef<GoogleMarker | null>(null);
-  const onMapPressRef = useRef(onMapPress);
+  const onViewChangeRef = useRef(onViewChange);
   const onPinPressRef = useRef(onPinPress);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
-  onMapPressRef.current = onMapPress;
+  onViewChangeRef.current = onViewChange;
   onPinPressRef.current = onPinPress;
 
   useEffect(() => {
@@ -60,12 +61,10 @@ export default function MapCanvas({
           gestureHandling: 'greedy',
           backgroundColor: '#111111',
         });
-        map.addListener('click', (event) => {
-          if (!event.latLng) return;
-          onMapPressRef.current({
-            latitude: event.latLng.lat(),
-            longitude: event.latLng.lng(),
-          });
+        map.addListener('idle', () => {
+          const next = map.getCenter();
+          if (!next) return;
+          onViewChangeRef.current({ latitude: next.lat(), longitude: next.lng() });
         });
         mapRef.current = map;
         setReady(true);

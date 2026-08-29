@@ -18,7 +18,13 @@ declare global {
           PlacesService: new (el: HTMLElement) => {
             getDetails: (
               req: { placeId: string; fields: string[] },
-              cb: (place: { geometry?: { location?: { lat: () => number; lng: () => number } }; name?: string } | null) => void,
+              cb: (
+                place: {
+                  geometry?: { location?: { lat: () => number; lng: () => number } };
+                  name?: string;
+                  formatted_address?: string;
+                } | null,
+              ) => void,
             ) => void;
           };
         };

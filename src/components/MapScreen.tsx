@@ -16,6 +16,7 @@ export function MapScreen() {
   const insets = useSafeAreaInsets();
   const { pins, addPin, updatePin, deletePin } = usePins();
   const [center, setCenter] = useState<LatLng>(SYDNEY);
+  const [viewCenter, setViewCenter] = useState<LatLng>(SYDNEY);
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [draft, setDraft] = useState<LatLng | null>(null);
   const [selected, setSelected] = useState<EventPin | null>(null);
@@ -37,6 +38,7 @@ export function MapScreen() {
     };
     setUserLocation(next);
     setCenter(next);
+    setViewCenter(next);
   }
 
   if (!GOOGLE_MAPS_API_KEY) {
@@ -58,24 +60,31 @@ export function MapScreen() {
         pins={pins}
         center={center}
         userLocation={userLocation}
-        onMapPress={(coord) => {
-          setSelected(null);
-          setDraft(coord);
-        }}
+        onViewChange={setViewCenter}
         onPinPress={(pin) => {
           setDraft(null);
           setSelected(pin);
         }}
       />
       <View style={{ paddingTop: insets.top }}>
-        <SearchBar onSelect={setCenter} />
+        <SearchBar
+          onSelect={(coord) => {
+            setCenter(coord);
+            setViewCenter(coord);
+          }}
+        />
       </View>
       {locateError ? <Text style={styles.locateError}>{locateError}</Text> : null}
-      <Text style={[styles.hint, { bottom: insets.bottom + 88 }]}>
-        Tap the map to drop a pin
-      </Text>
       <Pressable
-        style={[styles.locate, { bottom: insets.bottom + 24 }]}
+        style={[styles.fab, { bottom: insets.bottom + 88 }]}
+        onPress={() => {
+          setSelected(null);
+          setDraft(viewCenter);
+        }}>
+        <Text style={styles.addIcon}>+</Text>
+      </Pressable>
+      <Pressable
+        style={[styles.fab, { bottom: insets.bottom + 24 }]}
         onPress={() => {
           locateMe().catch(() => setLocateError('Could not read your location.'));
         }}>
@@ -95,6 +104,8 @@ export function MapScreen() {
           } else {
             addPin(input);
           }
+          setCenter({ latitude: input.latitude, longitude: input.longitude });
+          setViewCenter({ latitude: input.latitude, longitude: input.longitude });
           setSelected(null);
           setDraft(null);
         }}
@@ -139,16 +150,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
   },
-  hint: {
-    position: 'absolute',
-    alignSelf: 'center',
-    left: 24,
-    right: 24,
-    textAlign: 'center',
-    color: '#d0d0d0',
-    fontSize: 13,
-  },
-  locate: {
+  fab: {
     position: 'absolute',
     right: 18,
     width: 54,
@@ -161,6 +163,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 4,
+  },
+  addIcon: {
+    color: '#111',
+    fontSize: 32,
+    fontWeight: '400',
+    marginTop: -2,
   },
   locateIcon: {
     color: '#111',
