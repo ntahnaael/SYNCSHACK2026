@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useEffect, useRef } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker, Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
 
 import { SYDNEY } from '@/constants/pins';
@@ -82,9 +82,9 @@ export default function MapCanvas({
               event.stopPropagation();
               onPinPress(pin);
             }}
-            // Google Maps on iOS can snapshot a custom marker before its child view is laid out.
-            // Keeping updates enabled there ensures event pins render instead of appearing blank.
-            tracksViewChanges={Platform.OS === 'ios'}
+            // Expo Image finishes loading asynchronously on Android. Keep the marker tracked so
+            // Pixel devices redraw the local PNG instead of retaining an empty first snapshot.
+            tracksViewChanges
             anchor={{ x: 0.5, y: 1 }}>
             <Image source={CATEGORY_PIN_IMAGES[pin.category]} style={styles.pinImage} contentFit="contain" />
           </Marker>

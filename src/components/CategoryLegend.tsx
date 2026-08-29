@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CATEGORIES } from '@/constants/pins';
 import { useAppColors } from '@/hooks/use-app-colors';
+import { hapticSelection } from '@/lib/haptics';
 import { CATEGORY_LEGEND_IMAGES } from '@/constants/categoryAssets';
 import { useThemeMode } from '@/store/ThemeContext';
 import type { PinCategory } from '@/types';
@@ -25,7 +26,7 @@ export function CategoryLegend({ selectedCategory, onSelectCategory }: Props) {
   const colors = useAppColors();
   const { isDark } = useThemeMode();
 
-  const panelBg = isDark ? 'rgba(22, 22, 25, 0.96)' : 'rgba(253, 249, 246, 0.97)';
+  const panelBg = colors.controlBg;
   const allIconFill = selectedCategory === null ? colors.textAccent : (isDark ? '#3A3A3F' : '#D4CFC9');
   const allUri = `data:image/svg+xml;utf8,${encodeURIComponent(ALL_ICON_SVG(allIconFill))}`;
 
@@ -35,7 +36,10 @@ export function CategoryLegend({ selectedCategory, onSelectCategory }: Props) {
       {/* ALL row */}
       <Pressable
         accessibilityLabel="Show all categories"
-        onPress={() => onSelectCategory(null)}
+        onPress={() => {
+          hapticSelection();
+          onSelectCategory(null);
+        }}
         style={({ pressed }) => [
           styles.item,
           selectedCategory === null && [styles.activeItem, { backgroundColor: isDark ? 'rgba(245,158,11,0.10)' : 'rgba(217,119,6,0.08)' }],
@@ -55,7 +59,10 @@ export function CategoryLegend({ selectedCategory, onSelectCategory }: Props) {
           <Pressable
             key={cat.id}
             accessibilityLabel={`Filter by ${cat.label}`}
-            onPress={() => onSelectCategory(isSelected ? null : cat.id)}
+            onPress={() => {
+              hapticSelection();
+              onSelectCategory(isSelected ? null : cat.id);
+            }}
             style={({ pressed }) => [
               styles.item,
               isSelected && [styles.activeItem, { backgroundColor: isDark ? `${cat.color}18` : `${cat.color}12` }],
@@ -79,8 +86,8 @@ export function CategoryLegend({ selectedCategory, onSelectCategory }: Props) {
 
 const styles = StyleSheet.create({
   panel: {
-    width: 220,
-    borderRadius: 20,
+    width: '100%',
+    borderRadius: 18,
     paddingVertical: 8,
     paddingHorizontal: 6,
     borderWidth: 1,

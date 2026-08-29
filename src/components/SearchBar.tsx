@@ -11,97 +11,188 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import Animated, {
+  Easing,
   FadeIn,
   FadeInDown,
   FadeOut,
   FadeOutUp,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
+  withSequence,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 
 import { useAppColors } from '@/hooks/use-app-colors';
+import { hapticSelection, hapticTap } from '@/lib/haptics';
 import { getPlaceLocation, searchPlaces } from '@/map/searchPlaces';
 import type { LatLng, PlaceHit } from '@/types';
-import { useThemeMode } from '@/store/ThemeContext';
 
 type Props = {
-  onSelect: (coord: LatLng) => void;
+  onSelect: (coord: LatLng, description: string) => void;
   onExpandedChange?: (expanded: boolean) => void;
+  dismissSignal?: number;
 };
 
-export function SearchBar({ onSelect, onExpandedChange }: Props) {
+export function SearchBar({ onSelect, onExpandedChange, dismissSignal = 0 }: Props) {
   const { width: windowWidth } = useWindowDimensions();
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<PlaceHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [contentVisible, setContentVisible] = useState(false);
   const inputRef = useRef<TextInput>(null);
+  const collapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastDismissSignal = useRef(dismissSignal);
+  const previousExpanded = useRef(false);
   const barWidth = useSharedValue(56);
-  // Leave room for the profile button and the fixed upper-right voxel logo.
-  const expandedWidth = Math.max(56, Math.min(windowWidth - 216, 560));
+  const returnScaleX = useSharedValue(1);
+  const returnScaleY = useSharedValue(1);
+  // When searching, the voxel artwork is hidden so the bar can use the full space
+  // beside the profile button without overflowing the right safe edge.
+  const expandedWidth = Math.max(56, Math.min(windowWidth - 94, 560));
   const colors = useAppColors();
-  const { isDark } = useThemeMode();
 
   const animatedWrapStyle = useAnimatedStyle(() => ({
     width: barWidth.value,
   }));
+  const animatedBarStyle = useAnimatedStyle(() => ({
+    transform: [{ scaleX: returnScaleX.value }, { scaleY: returnScaleY.value }],
+  }));
 
   useEffect(() => {
+    const didCollapse = previousExpanded.current && !expanded;
+    previousExpanded.current = expanded;
     barWidth.value = withSpring(expanded ? expandedWidth : 56, {
-      damping: 17,
-      stiffness: 210,
+      damping: expanded ? 9 : 18,
+      stiffness: expanded ? 250 : 320,
       mass: 0.72,
+      overshootClamping: !expanded,
     });
-  }, [barWidth, expanded, expandedWidth]);
+
+    if (expanded) {
+      returnScaleX.value = withSpring(1, { damping: 12, stiffness: 320 });
+      returnScaleY.value = withSpring(1, { damping: 12, stiffness: 320 });
+    } else if (didCollapse) {
+      returnScaleX.value = withDelay(
+        75,
+        withSequence(
+          withTiming(0.92, { duration: 75, easing: Easing.out(Easing.quad) }),
+          withSpring(1, { damping: 6.5, stiffness: 330, mass: 0.42 }),
+        ),
+      );
+      returnScaleY.value = withDelay(
+        75,
+        withSequence(
+          withTiming(1.065, { duration: 75, easing: Easing.out(Easing.quad) }),
+          withSpring(1, { damping: 7, stiffness: 320, mass: 0.44 }),
+        ),
+      );
+    }
+  }, [barWidth, expanded, expandedWidth, returnScaleX, returnScaleY]);
 
   useEffect(() => {
     onExpandedChange?.(expanded);
   }, [expanded, onExpandedChange]);
 
   useEffect(() => {
-    if (!expanded) return;
+    if (!contentVisible) return;
     const handle = setTimeout(() => inputRef.current?.focus(), 100);
     return () => clearTimeout(handle);
-  }, [expanded]);
+  }, [contentVisible]);
 
   useEffect(() => {
+    let cancelled = false;
     const handle = setTimeout(() => {
-      if (!expanded || query.trim().length < 2) {
+      if (!contentVisible || query.trim().length < 2) {
         setHits([]);
         setLoading(false);
         return;
       }
       setLoading(true);
       searchPlaces(query)
-        .then(setHits)
-        .catch(() => setHits([]))
-        .finally(() => setLoading(false));
+        .then((results) => {
+          if (!cancelled) setHits(results);
+        })
+        .catch(() => {
+          if (!cancelled) setHits([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
     }, 280);
-    return () => clearTimeout(handle);
-  }, [expanded, query]);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [contentVisible, query]);
+
+  useEffect(
+    () => () => {
+      if (collapseTimer.current) clearTimeout(collapseTimer.current);
+    },
+    [],
+  );
+
+  function openSearch() {
+    if (collapseTimer.current) {
+      clearTimeout(collapseTimer.current);
+      collapseTimer.current = null;
+    }
+    hapticTap();
+    setExpanded(true);
+    setContentVisible(true);
+  }
+
+  function closeSearch() {
+    hapticSelection();
+    inputRef.current?.blur();
+    setContentVisible(false);
+    setHits([]);
+    setLoading(false);
+    if (collapseTimer.current) clearTimeout(collapseTimer.current);
+    collapseTimer.current = setTimeout(() => {
+      collapseTimer.current = null;
+      setExpanded(false);
+    }, 100);
+  }
+
+  function clearSearch() {
+    hapticSelection();
+    setQuery('');
+    setHits([]);
+    setLoading(false);
+    inputRef.current?.focus();
+  }
+
+  useEffect(() => {
+    if (dismissSignal === lastDismissSignal.current) return;
+    lastDismissSignal.current = dismissSignal;
+    if (expanded || contentVisible) closeSearch();
+  }, [contentVisible, dismissSignal, expanded]);
 
   return (
     <Animated.View style={[styles.wrap, animatedWrapStyle]}>
-      <View
+      <Animated.View
         style={[
           styles.bar,
+          animatedBarStyle,
           { backgroundColor: colors.searchBarBg, borderColor: colors.searchBarBorder },
           !expanded && {
             borderRadius: 18,
-            backgroundColor: 'rgba(255,255,255,0.12)',
-            borderColor: 'rgba(255,255,255,0.24)',
-            shadowColor: '#FFFFFF',
+            backgroundColor: colors.controlBg,
+            borderColor: colors.controlBorder,
+            shadowColor: '#000000',
             shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: 0.3,
-            shadowRadius: 12,
+            shadowOpacity: 0.16,
+            shadowRadius: 8,
             elevation: 5,
           },
-          !expanded && !isDark && styles.collapsedBarLight,
         ]}>
         <Pressable
-          accessibilityLabel={expanded ? 'Focus search' : 'Open search'}
-          onPress={() => setExpanded(true)}
+          accessibilityLabel={contentVisible ? 'Focus search' : 'Open search'}
+          onPress={openSearch}
           style={styles.iconButton}>
           <Image
             accessibilityLabel="Voxel search icon"
@@ -110,7 +201,7 @@ export function SearchBar({ onSelect, onExpandedChange }: Props) {
             style={styles.searchVoxelIcon}
           />
         </Pressable>
-        {expanded ? (
+        {contentVisible ? (
           <Animated.View entering={FadeIn.delay(80).duration(140)} exiting={FadeOut.duration(80)} style={styles.inputWrap}>
             <TextInput
               ref={inputRef}
@@ -126,25 +217,26 @@ export function SearchBar({ onSelect, onExpandedChange }: Props) {
             />
           </Animated.View>
         ) : null}
-        {expanded ? (
-          loading ? (
-            <View style={styles.iconButton}>
-              <ActivityIndicator color={colors.searchLoaderColor} size="small" />
-            </View>
-          ) : (
-            <Pressable
-              accessibilityLabel="Close search"
-              onPress={() => {
-                setExpanded(false);
-                setHits([]);
-              }}
-              style={styles.iconButton}>
-              <MaterialCommunityIcons name="close" size={22} color={colors.searchCloseIcon} />
-            </Pressable>
-          )
+        {contentVisible ? (
+          <Animated.View entering={FadeIn.delay(80).duration(140)} exiting={FadeOut.duration(80)} style={styles.actionWrap}>
+            {loading ? (
+              <View style={styles.iconButton}>
+                <ActivityIndicator color={colors.searchLoaderColor} size="small" />
+              </View>
+            ) : query.length > 0 ? (
+              <Pressable
+                accessibilityLabel="Clear search"
+                onPress={clearSearch}
+                style={styles.iconButton}>
+                <MaterialCommunityIcons name="close" size={22} color={colors.searchCloseIcon} />
+              </Pressable>
+            ) : (
+              <View style={styles.iconButton} />
+            )}
+          </Animated.View>
         ) : null}
-      </View>
-      {expanded && hits.length > 0 ? (
+      </Animated.View>
+      {contentVisible && hits.length > 0 ? (
         <Animated.View entering={FadeInDown.springify()} exiting={FadeOutUp} style={styles.dropdownWrap}>
           <View style={[styles.dropdown, { borderColor: colors.searchBarBorder, backgroundColor: colors.dropdownBg }]}>
             {hits.slice(0, 6).map((hit) => (
@@ -152,8 +244,9 @@ export function SearchBar({ onSelect, onExpandedChange }: Props) {
                 key={hit.placeId}
                 style={[styles.hit, { borderBottomColor: colors.dropdownBorder }]}
                 onPress={async () => {
+                  hapticSelection();
                   const coord = await getPlaceLocation(hit.placeId);
-                  if (coord) onSelect(coord);
+                  if (coord) onSelect(coord, hit.description);
                   setQuery(hit.description);
                   setHits([]);
                 }}>
@@ -174,6 +267,7 @@ const styles = StyleSheet.create({
   bar: {
     height: 54,
     borderRadius: 28,
+    transformOrigin: 'left center',
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
@@ -184,16 +278,16 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
   },
-  collapsedBarLight: {
-    backgroundColor: 'rgba(255,255,255,0.32)',
-    borderColor: 'rgba(255,255,255,0.62)',
-    shadowOpacity: 0.42,
-  },
   iconButton: {
     width: 54,
     height: 54,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
+  },
+  actionWrap: {
+    width: 54,
+    height: 54,
     flexShrink: 0,
   },
   searchVoxelIcon: {
