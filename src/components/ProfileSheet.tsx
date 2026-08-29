@@ -25,6 +25,7 @@ type Props = {
   onClose: () => void;
   onSave: (input: Pick<UserProfile, 'displayName' | 'color'>) => void;
   onLogout: () => void;
+  onResetTerritory: () => void;
 };
 
 export function ProfileSheet({
@@ -38,6 +39,7 @@ export function ProfileSheet({
   onClose,
   onSave,
   onLogout,
+  onResetTerritory,
 }: Props) {
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [color, setColor] = useState(profile.color);
@@ -144,6 +146,9 @@ export function ProfileSheet({
               onLogout();
             }}>
             <Text style={styles.logoutText}>Log out</Text>
+          </Pressable>
+          <Pressable style={styles.resetTerritoryBtn} onPress={onResetTerritory}>
+            <Text style={styles.resetTerritoryText}>Reset territory</Text>
           </Pressable>
           </ScrollView>
         </View>
@@ -310,6 +315,18 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     color: '#ff8a80',
+    fontWeight: '700',
+  },
+  resetTerritoryBtn: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(255,138,128,0.45)',
+  },
+  resetTerritoryText: {
+    color: '#ffb4b4',
     fontWeight: '700',
   },
 });
