@@ -1,13 +1,26 @@
 import * as Location from 'expo-location';
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { FAB } from 'react-native-paper';
+import Animated, {
+  Easing,
+  ZoomIn,
+  ZoomOut,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SYDNEY } from '@/constants/pins';
+import { useAppColors } from '@/hooks/use-app-colors';
 import { GOOGLE_MAPS_API_KEY } from '@/lib/googleKey';
 import MapCanvas from '@/map/MapCanvas';
 import { saveEventImage } from '@/services/event-images';
 import { usePins } from '@/store/PinsContext';
+import { useThemeMode } from '@/store/ThemeContext';
 import type { EventPin, LatLng } from '@/types';
 
 import { PinSheet } from './PinSheet';
@@ -22,8 +35,39 @@ export function MapScreen() {
   const [draft, setDraft] = useState<LatLng | null>(null);
   const [selected, setSelected] = useState<EventPin | null>(null);
   const [locateError, setLocateError] = useState<string | null>(null);
+  const addEventTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const addEventScale = useSharedValue(1);
+  const { isDark, toggle } = useThemeMode();
+  const colors = useAppColors();
 
   const sheetOpen = Boolean(draft || selected);
+  const addEventPressStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: addEventScale.value }],
+  }));
+
+  useEffect(
+    () => () => {
+      if (addEventTimer.current) clearTimeout(addEventTimer.current);
+    },
+    [],
+  );
+
+  function openAddEvent() {
+    if (addEventTimer.current) return;
+
+    addEventScale.value = withSequence(
+      withTiming(0.82, { duration: 70, easing: Easing.out(Easing.quad) }),
+      withSpring(1.08, { damping: 7, stiffness: 360, mass: 0.38 }),
+      withSpring(1, { damping: 9, stiffness: 300, mass: 0.42 }),
+    );
+
+    // Let the tactile press response begin before the FAB morphs into the sheet.
+    addEventTimer.current = setTimeout(() => {
+      addEventTimer.current = null;
+      setSelected(null);
+      setDraft(viewCenter);
+    }, 110);
+  }
 
   async function locateMe() {
     setLocateError(null);
@@ -44,19 +88,19 @@ export function MapScreen() {
 
   if (!GOOGLE_MAPS_API_KEY) {
     return (
-      <View style={[styles.missing, { paddingTop: insets.top + 24 }]}>
-        <Text style={styles.missingTitle}>Add your Google Maps key</Text>
-        <Text style={styles.missingBody}>
+      <View style={[styles.missing, { paddingTop: insets.top + 24, backgroundColor: colors.background }]}>
+        <Text style={[styles.missingTitle, { color: colors.text }]}>Add your Google Maps key</Text>
+        <Text style={[styles.missingBody, { color: colors.textMuted }]}>
           Create a .env file in the repo root with:
         </Text>
-        <Text style={styles.missingCode}>EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=your_key</Text>
-        <Text style={styles.missingBody}>Then restart Expo so the key is picked up.</Text>
+        <Text style={[styles.missingCode, { color: colors.text, backgroundColor: colors.inputBg }]}>EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=your_key</Text>
+        <Text style={[styles.missingBody, { color: colors.textMuted }]}>Then restart Expo so the key is picked up.</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <MapCanvas
         pins={pins}
         center={center}
@@ -75,26 +119,60 @@ export function MapScreen() {
           }}
         />
       </View>
-      {locateError ? <Text style={styles.locateError}>{locateError}</Text> : null}
-      <Pressable
-        style={[styles.fab, { bottom: insets.bottom + 88 }]}
-        onPress={() => {
-          setSelected(null);
-          setDraft(viewCenter);
-        }}>
-        <Text style={styles.addIcon}>+</Text>
-      </Pressable>
-      <Pressable
-        style={[styles.fab, { bottom: insets.bottom + 24 }]}
-        onPress={() => {
-          locateMe().catch(() => setLocateError('Could not read your location.'));
-        }}>
-        <Text style={styles.locateIcon}>◎</Text>
-      </Pressable>
+      {locateError ? <Text style={[styles.locateError, { color: colors.errorText }]}>{locateError}</Text> : null}
+
+      {/* Theme toggle FAB */}
+      {!sheetOpen && (
+        <Animated.View
+          entering={ZoomIn.springify().delay(200)}
+          exiting={ZoomOut.springify().damping(13).stiffness(260).mass(0.5)}
+          style={[styles.fabWrap, { bottom: insets.bottom + 152 }]}>
+          <FAB
+            icon={isDark ? 'weather-sunny' : 'weather-night'}
+            accessibilityLabel="Toggle theme"
+            style={[styles.fab, { backgroundColor: colors.fabBg }]}
+            color={isDark ? '#FFF9C4' : '#E8E1F4'}
+            onPress={toggle}
+          />
+        </Animated.View>
+      )}
+      {!sheetOpen && (
+        <Animated.View
+          entering={ZoomIn.springify()}
+          exiting={ZoomOut.springify().damping(11).stiffness(300).mass(0.45)}
+          style={[styles.fabWrap, { bottom: insets.bottom + 88 }]}>
+          <Animated.View style={addEventPressStyle}>
+            <FAB
+              icon="plus"
+              accessibilityLabel="Add event"
+              style={[styles.fab, { backgroundColor: colors.fabBg }]}
+              color={colors.fabIcon}
+              onPress={openAddEvent}
+            />
+          </Animated.View>
+        </Animated.View>
+      )}
+      {!sheetOpen && (
+        <Animated.View
+          entering={ZoomIn.springify().delay(100)}
+          exiting={ZoomOut.springify().damping(13).stiffness(260).mass(0.5)}
+          style={[styles.fabWrap, { bottom: insets.bottom + 24 }]}>
+          <FAB
+            icon="crosshairs-gps"
+            accessibilityLabel="Use my location"
+            style={[styles.fab, { backgroundColor: colors.fabBg }]}
+            color={colors.fabIcon}
+            onPress={() => {
+              locateMe().catch(() => setLocateError('Could not read your location.'));
+            }}
+          />
+        </Animated.View>
+      )}
       <PinSheet
         visible={sheetOpen}
         pin={selected}
         coord={draft}
+        anchorBottom={insets.bottom + 116}
         onClose={() => {
           setSelected(null);
           setDraft(null);
@@ -131,62 +209,37 @@ export function MapScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#111',
   },
   missing: {
     flex: 1,
-    backgroundColor: '#111',
     paddingHorizontal: 24,
     gap: 12,
   },
   missingTitle: {
-    color: '#fff',
     fontSize: 24,
     fontWeight: '700',
   },
   missingBody: {
-    color: '#bbb',
     fontSize: 16,
     lineHeight: 22,
   },
   missingCode: {
-    color: '#fff',
     fontFamily: 'monospace',
-    backgroundColor: '#222',
     padding: 12,
     borderRadius: 8,
   },
-  fab: {
+  fabWrap: {
     position: 'absolute',
-    right: 18,
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
+    left: 18,
   },
-  addIcon: {
-    color: '#111',
-    fontSize: 32,
-    fontWeight: '400',
-    marginTop: -2,
-  },
-  locateIcon: {
-    color: '#111',
-    fontSize: 24,
-    fontWeight: '700',
+  fab: {
+    borderRadius: 18,
   },
   locateError: {
     position: 'absolute',
     top: 84,
     left: 20,
     right: 20,
-    color: '#ffb4b4',
     textAlign: 'center',
   },
 });

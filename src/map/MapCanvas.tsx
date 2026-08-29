@@ -3,8 +3,11 @@ import { Platform, StyleSheet, View } from 'react-native';
 import MapView, { Circle, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
 import { categoryMeta, SYDNEY } from '@/constants/pins';
+import { useAppColors } from '@/hooks/use-app-colors';
+import { useThemeMode } from '@/store/ThemeContext';
 
 import { darkMapStyle } from './darkMapStyle';
+import { lightMapStyle } from './lightMapStyle';
 import type { MapCanvasProps } from './mapTypes';
 
 export default function MapCanvas({
@@ -15,6 +18,8 @@ export default function MapCanvas({
   onPinPress,
 }: MapCanvasProps) {
   const mapRef = useRef<MapView>(null);
+  const { isDark } = useThemeMode();
+  const colors = useAppColors();
 
   useEffect(() => {
     mapRef.current?.animateToRegion(
@@ -33,7 +38,7 @@ export default function MapCanvas({
       ref={mapRef}
       style={styles.map}
       provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-      customMapStyle={darkMapStyle}
+      customMapStyle={isDark ? darkMapStyle : lightMapStyle}
       initialRegion={SYDNEY}
       onRegionChangeComplete={(region) =>
         onViewChange({ latitude: region.latitude, longitude: region.longitude })
@@ -53,7 +58,7 @@ export default function MapCanvas({
             tracksViewChanges={false}
             anchor={{ x: 0.5, y: 1 }}>
             <View style={styles.pinWrap}>
-              <View style={[styles.pin, { backgroundColor: meta.color }]} />
+              <View style={[styles.pin, { backgroundColor: meta.color, borderColor: colors.pinBorder }]} />
               <View style={[styles.tip, { borderTopColor: meta.color }]} />
             </View>
           </Marker>
@@ -74,7 +79,7 @@ export default function MapCanvas({
 
 const styles = StyleSheet.create({
   map: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   pinWrap: {
     alignItems: 'center',
@@ -84,7 +89,6 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     borderWidth: 3,
-    borderColor: '#111',
   },
   tip: {
     width: 0,

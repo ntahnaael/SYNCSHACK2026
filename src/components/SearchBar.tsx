@@ -1,13 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
-  Text,
   TextInput,
   View,
+  Text,
+  useWindowDimensions,
 } from 'react-native';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeOut,
+  FadeOutUp,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 
+import { useAppColors } from '@/hooks/use-app-colors';
 import { getPlaceLocation, searchPlaces } from '@/map/searchPlaces';
 import type { LatLng, PlaceHit } from '@/types';
 
@@ -16,14 +28,39 @@ type Props = {
 };
 
 export function SearchBar({ onSelect }: Props) {
+  const { width: windowWidth } = useWindowDimensions();
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<PlaceHit[]>([]);
   const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+  const barWidth = useSharedValue(56);
+  const expandedWidth = Math.min(windowWidth - 32, 560);
+  const colors = useAppColors();
+
+  const animatedWrapStyle = useAnimatedStyle(() => ({
+    width: barWidth.value,
+  }));
+
+  useEffect(() => {
+    barWidth.value = withSpring(expanded ? expandedWidth : 56, {
+      damping: 17,
+      stiffness: 210,
+      mass: 0.72,
+    });
+  }, [barWidth, expanded, expandedWidth]);
+
+  useEffect(() => {
+    if (!expanded) return;
+    const handle = setTimeout(() => inputRef.current?.focus(), 100);
+    return () => clearTimeout(handle);
+  }, [expanded]);
 
   useEffect(() => {
     const handle = setTimeout(() => {
-      if (query.trim().length < 2) {
+      if (!expanded || query.trim().length < 2) {
         setHits([]);
+        setLoading(false);
         return;
       }
       setLoading(true);
@@ -33,45 +70,80 @@ export function SearchBar({ onSelect }: Props) {
         .finally(() => setLoading(false));
     }, 280);
     return () => clearTimeout(handle);
-  }, [query]);
+  }, [expanded, query]);
 
   return (
-    <View style={styles.wrap}>
-      <View style={styles.bar}>
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search places..."
-          placeholderTextColor="#8a8a8a"
-          style={styles.input}
-          autoCorrect={false}
-          autoCapitalize="none"
-          returnKeyType="search"
-        />
-        {loading ? (
-          <ActivityIndicator color="#fff" size="small" />
-        ) : (
-          <Text style={styles.searchIcon}>⌕</Text>
-        )}
-      </View>
-      {hits.length > 0 ? (
-        <View style={styles.dropdown}>
-          {hits.slice(0, 6).map((hit) => (
+    <Animated.View style={[styles.wrap, animatedWrapStyle]}>
+      <View
+        style={[
+          styles.bar,
+          { backgroundColor: colors.searchBarBg, borderColor: colors.searchBarBorder },
+          !expanded && {
+            borderRadius: 18,
+            backgroundColor: colors.searchBarCollapsedBg,
+            borderColor: colors.searchBarCollapsedBorder,
+          },
+        ]}>
+        <Pressable
+          accessibilityLabel={expanded ? 'Focus search' : 'Open search'}
+          onPress={() => setExpanded(true)}
+          style={styles.iconButton}>
+          <MaterialCommunityIcons name="magnify" size={25} color={colors.searchIcon} />
+        </Pressable>
+        {expanded ? (
+          <Animated.View entering={FadeIn.delay(80).duration(140)} exiting={FadeOut.duration(80)} style={styles.inputWrap}>
+            <TextInput
+              ref={inputRef}
+              autoFocus
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search places..."
+              placeholderTextColor={colors.searchPlaceholder}
+              style={[styles.input, { color: colors.searchInputText }]}
+              autoCorrect={false}
+              autoCapitalize="none"
+              returnKeyType="search"
+            />
+          </Animated.View>
+        ) : null}
+        {expanded ? (
+          loading ? (
+            <View style={styles.iconButton}>
+              <ActivityIndicator color={colors.searchLoaderColor} size="small" />
+            </View>
+          ) : (
             <Pressable
-              key={hit.placeId}
-              style={styles.hit}
-              onPress={async () => {
-                const coord = await getPlaceLocation(hit.placeId);
-                if (coord) onSelect(coord);
-                setQuery(hit.description);
+              accessibilityLabel="Close search"
+              onPress={() => {
+                setExpanded(false);
                 setHits([]);
-              }}>
-              <Text style={styles.hitText}>{hit.description}</Text>
+              }}
+              style={styles.iconButton}>
+              <MaterialCommunityIcons name="close" size={22} color={colors.searchCloseIcon} />
             </Pressable>
-          ))}
-        </View>
+          )
+        ) : null}
+      </View>
+      {expanded && hits.length > 0 ? (
+        <Animated.View entering={FadeInDown.springify()} exiting={FadeOutUp} style={styles.dropdownWrap}>
+          <View style={[styles.dropdown, { borderColor: colors.searchBarBorder, backgroundColor: colors.dropdownBg }]}>
+            {hits.slice(0, 6).map((hit) => (
+              <Pressable
+                key={hit.placeId}
+                style={[styles.hit, { borderBottomColor: colors.dropdownBorder }]}
+                onPress={async () => {
+                  const coord = await getPlaceLocation(hit.placeId);
+                  if (coord) onSelect(coord);
+                  setQuery(hit.description);
+                  setHits([]);
+                }}>
+                <Text style={[styles.hitText, { color: colors.textSecondary }]}>{hit.description}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </Animated.View>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -80,46 +152,47 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 16,
     left: 16,
-    right: 16,
     zIndex: 20,
   },
   bar: {
-    minHeight: 52,
-    borderRadius: 26,
-    paddingHorizontal: 18,
-    backgroundColor: 'rgba(28,28,28,0.92)',
+    height: 56,
+    borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+  },
+  iconButton: {
+    width: 54,
+    height: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  inputWrap: {
+    flex: 1,
+    minWidth: 0,
   },
   input: {
-    flex: 1,
-    color: '#fff',
+    width: '100%',
     fontSize: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 2,
+  },
+  dropdownWrap: {
+    marginTop: 8,
   },
   dropdown: {
-    marginTop: 8,
     borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: 'rgba(28,28,28,0.96)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
   },
   hit: {
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   hitText: {
-    color: '#eee',
     fontSize: 14,
-  },
-  searchIcon: {
-    color: '#d0d0d0',
-    fontSize: 20,
   },
 });
