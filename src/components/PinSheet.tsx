@@ -1,30 +1,40 @@
 import * as Location from 'expo-location';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import Animated, {
+  FadeIn,
+  FadeOut,
+  ZoomIn,
+  ZoomOut,
+} from 'react-native-reanimated';
+import { GlassView } from 'expo-glass-effect';
 
 import { CATEGORIES } from '@/constants/pins';
+import { useAppColors } from '@/hooks/use-app-colors';
 import { getPlaceLocation, searchPlaces } from '@/map/searchPlaces';
+import { useThemeMode } from '@/store/ThemeContext';
 import type { EventPin, LatLng, PinCategory, PlaceHit } from '@/types';
 
 type Props = {
   visible: boolean;
   pin: EventPin | null;
   coord: LatLng | null;
+  anchorBottom: number;
   onClose: () => void;
   onSave: (pin: Omit<EventPin, 'id'> & { id?: string }) => void;
   onDelete?: () => void;
 };
 
-export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Props) {
+export function PinSheet({ visible, pin, coord, anchorBottom, onClose, onSave, onDelete }: Props) {
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [time, setTime] = useState('');
@@ -33,6 +43,11 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
   const [hits, setHits] = useState<PlaceHit[]>([]);
   const [locateHint, setLocateHint] = useState<string | null>(null);
   const [category, setCategory] = useState<PinCategory>('hangout');
+  const [closing, setClosing] = useState(false);
+  const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const BackdropContainer = (Platform.OS === 'web' ? View : Animated.View) as typeof Animated.View;
+  const { isDark } = useThemeMode();
+  const colors = useAppColors();
 
   useEffect(() => {
     if (!visible) return;
@@ -44,7 +59,15 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
     setHits([]);
     setLocateHint(null);
     setCategory(pin?.category ?? 'hangout');
+    setClosing(false);
   }, [visible, pin, coord]);
+
+  useEffect(
+    () => () => {
+      if (exitTimer.current) clearTimeout(exitTimer.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -78,19 +101,56 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
     setHits([]);
   }
 
+  function exitThen(action: () => void) {
+    if (closing) return;
+    setClosing(true);
+    exitTimer.current = setTimeout(action, 220);
+  }
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
-          <Text style={styles.heading}>{pin ? 'Edit event' : 'New event'}</Text>
+    <View style={[StyleSheet.absoluteFill, { zIndex: 100 }]} pointerEvents="box-none">
+      <BackdropContainer
+        entering={Platform.OS === 'web' ? undefined : FadeIn.duration(320)}
+        exiting={Platform.OS === 'web' ? undefined : FadeOut.duration(220)}
+        style={[
+          StyleSheet.absoluteFill,
+          styles.backdropLayer,
+          { backgroundColor: colors.backdropBg },
+          Platform.OS === 'web' && (closing ? styles.backdropWebExit : styles.backdropWebEnter),
+        ]}>
+        <GlassView glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill}>
+          <Pressable style={styles.backdrop} onPress={() => exitThen(onClose)} />
+        </GlassView>
+      </BackdropContainer>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={[styles.keyboardWrap, { paddingBottom: anchorBottom }]}
+        pointerEvents="box-none">
+        <Animated.View
+          entering={ZoomIn.springify().damping(13).stiffness(190).mass(0.72)}
+          exiting={ZoomOut.duration(170)}
+          style={styles.sheetWrap}>
+          <GlassView glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={[styles.sheet, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
+            <View style={styles.header}>
+              <View>
+                <Text style={[styles.eyebrow, { color: colors.textAccent }]}>{pin ? 'EVENT DETAILS' : 'CREATE EVENT'}</Text>
+                <Text style={[styles.heading, { color: colors.text }]}>{pin ? 'Edit event' : 'New event'}</Text>
+              </View>
+              <Pressable accessibilityLabel="Close" onPress={() => exitThen(onClose)} style={[styles.closeBtn, { backgroundColor: colors.closeBtnBg }]}>
+                <Text style={[styles.closeText, { color: colors.closeIcon }]}>×</Text>
+              </Pressable>
+            </View>
+            <ScrollView
+              bounces={false}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.form}>
           <TextInput
             value={title}
             onChangeText={setTitle}
             placeholder="Title"
-            placeholderTextColor="#777"
-            style={styles.input}
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }]}
           />
           <TextInput
             value={place}
@@ -99,15 +159,15 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
               setPicked(null);
             }}
             placeholder="Location"
-            placeholderTextColor="#777"
-            style={styles.input}
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }]}
           />
           {hits.length > 0 ? (
-            <View style={styles.dropdown}>
+            <View style={[styles.dropdown, { backgroundColor: colors.dropdownBg }]}>
               {hits.slice(0, 5).map((hit) => (
                 <Pressable
                   key={hit.placeId}
-                  style={styles.hit}
+                  style={[styles.hit, { borderBottomColor: colors.dropdownBorder }]}
                   onPress={async () => {
                     const result = await getPlaceLocation(hit.placeId);
                     if (!result) return;
@@ -115,7 +175,7 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
                     setPicked(result);
                     setHits([]);
                   }}>
-                  <Text style={styles.hitText}>{hit.description}</Text>
+                  <Text style={[styles.hitText, { color: colors.textSecondary }]}>{hit.description}</Text>
                 </Pressable>
               ))}
             </View>
@@ -124,25 +184,25 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
             onPress={() => {
               useMyLocation().catch(() => setLocateHint('Could not read your location.'));
             }}>
-            <Text style={styles.useMine}>Use my location</Text>
+            <Text style={[styles.useMine, { color: colors.textLink }]}>Use my location</Text>
           </Pressable>
-          {locateHint ? <Text style={styles.locateHint}>{locateHint}</Text> : null}
+          {locateHint ? <Text style={[styles.locateHint, { color: colors.errorText }]}>{locateHint}</Text> : null}
           <TextInput
             value={time}
             onChangeText={setTime}
             placeholder="When (e.g. Sat 6:00pm)"
-            placeholderTextColor="#777"
-            style={styles.input}
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }]}
           />
           <TextInput
             value={notes}
             onChangeText={setNotes}
             placeholder="Notes"
-            placeholderTextColor="#777"
-            style={[styles.input, styles.notes]}
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, styles.notes, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }]}
             multiline
           />
-          <Text style={styles.label}>Customize</Text>
+          <Text style={[styles.label, { color: colors.textMuted }]}>Customize</Text>
           <View style={styles.cats}>
             {CATEGORIES.map((item) => {
               const selected = item.id === category;
@@ -155,113 +215,179 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
                     { borderColor: item.color },
                     selected && { backgroundColor: item.color },
                   ]}>
-                  <View style={[styles.dot, { backgroundColor: selected ? '#111' : item.color }]} />
-                  <Text style={[styles.catText, selected && { color: '#111' }]}>{item.label}</Text>
+                  <View style={[styles.dot, { backgroundColor: selected ? colors.background : item.color }]} />
+                  <Text style={[styles.catText, { color: colors.textSecondary }, selected && { color: colors.background }]}>{item.label}</Text>
                 </Pressable>
               );
             })}
           </View>
           <View style={styles.actions}>
             {pin && onDelete ? (
-              <Pressable style={styles.deleteBtn} onPress={onDelete}>
-                <Text style={styles.deleteText}>Delete</Text>
+              <Pressable style={[styles.deleteBtn, { backgroundColor: colors.deleteBg }]} onPress={() => exitThen(onDelete)}>
+                <Text style={[styles.deleteText, { color: colors.deleteText }]}>Delete</Text>
               </Pressable>
             ) : (
               <View style={styles.flex} />
             )}
             <Pressable
-              style={[styles.saveBtn, (!title.trim() || !place.trim() || !picked) && styles.saveDisabled]}
+              style={[styles.saveBtn, { backgroundColor: colors.saveBg }, (!title.trim() || !place.trim() || !picked) && styles.saveDisabled]}
               onPress={() => {
                 if (!title.trim() || !place.trim() || !picked) return;
-                onSave({
-                  id: pin?.id,
-                  title: title.trim(),
-                  notes: notes.trim(),
-                  time: time.trim(),
-                  place: place.trim(),
-                  category,
-                  latitude: picked.latitude,
-                  longitude: picked.longitude,
-                });
+                exitThen(() =>
+                  onSave({
+                    id: pin?.id,
+                    title: title.trim(),
+                    notes: notes.trim(),
+                    time: time.trim(),
+                    place: place.trim(),
+                    category,
+                    latitude: picked.latitude,
+                    longitude: picked.longitude,
+                  }),
+                );
               }}>
-              <Text style={styles.saveText}>Save</Text>
+              <Text style={[styles.saveText, { color: colors.saveText }]}>Save</Text>
             </Pressable>
           </View>
-        </View>
+            </ScrollView>
+          </GlassView>
+        </Animated.View>
       </KeyboardAvoidingView>
-    </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardWrap: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    alignItems: 'flex-start',
+    paddingHorizontal: 18,
+  },
+  sheetWrap: {
+    width: '100%',
+    maxWidth: 520,
+    maxHeight: '86%',
+    transformOrigin: [28, '100%', 0],
+  },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
   },
+  backdropLayer: {
+    ...(Platform.OS === 'web'
+      ? ({
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+        } as object)
+      : null),
+  },
+  backdropWebEnter: {
+    animationKeyframes: {
+      from: {
+        backgroundColor: 'rgba(0,0,0,0)',
+        backdropFilter: 'blur(0px)',
+      },
+      to: {
+        backgroundColor: 'rgba(0,0,0,0.28)',
+        backdropFilter: 'blur(12px)',
+      },
+    },
+    animationDuration: '320ms',
+    animationTimingFunction: 'cubic-bezier(0.05, 0.7, 0.1, 1)',
+    animationFillMode: 'both',
+  } as any,
+  backdropWebExit: {
+    animationKeyframes: {
+      from: {
+        backgroundColor: 'rgba(0,0,0,0.28)',
+        backdropFilter: 'blur(12px)',
+      },
+      to: {
+        backgroundColor: 'rgba(0,0,0,0)',
+        backdropFilter: 'blur(0px)',
+      },
+    },
+    animationDuration: '220ms',
+    animationTimingFunction: 'cubic-bezier(0.3, 0, 0.8, 0.15)',
+    animationFillMode: 'both',
+  } as any,
   sheet: {
-    backgroundColor: '#1c1c1c',
-    paddingHorizontal: 20,
-    paddingBottom: 28,
-    paddingTop: 10,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    maxHeight: '100%',
+    paddingHorizontal: 18,
+    paddingBottom: 18,
+    paddingTop: 18,
+    borderRadius: 28,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
-  handle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#444',
-    marginBottom: 14,
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingHorizontal: 2,
+  },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.2,
   },
   heading: {
-    color: '#fff',
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
-    marginBottom: 14,
+    marginTop: 2,
+  },
+  closeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeText: {
+    fontSize: 26,
+    lineHeight: 28,
+    fontWeight: '300',
+  },
+  form: {
+    paddingBottom: 2,
   },
   input: {
-    backgroundColor: '#2a2a2a',
-    color: '#fff',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 10,
-    fontSize: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    marginBottom: 12,
+    fontSize: 15,
   },
   notes: {
-    minHeight: 72,
+    minHeight: 80,
     textAlignVertical: 'top',
   },
   dropdown: {
-    marginTop: -6,
+    marginTop: -8,
     marginBottom: 10,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: '#2a2a2a',
   },
   hit: {
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#3a3a3a',
   },
   hitText: {
-    color: '#eee',
     fontSize: 14,
   },
   useMine: {
-    color: '#8ab4ff',
-    marginBottom: 10,
+    marginBottom: 12,
+    marginLeft: 4,
     fontSize: 14,
   },
   locateHint: {
-    color: '#ffb4b4',
     marginBottom: 10,
     fontSize: 13,
   },
   label: {
-    color: '#aaa',
     marginBottom: 8,
     marginTop: 4,
   },
@@ -276,12 +402,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    borderRadius: 12,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
   },
   catText: {
-    color: '#eee',
     fontSize: 13,
   },
   dot: {
@@ -292,7 +417,8 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
+    marginTop: 4,
   },
   flex: {
     flex: 1,
@@ -300,26 +426,22 @@ const styles = StyleSheet.create({
   deleteBtn: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#3a1515',
+    borderRadius: 16,
     alignItems: 'center',
   },
   deleteText: {
-    color: '#ff6b6b',
     fontWeight: '600',
   },
   saveBtn: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#fff',
+    borderRadius: 16,
     alignItems: 'center',
   },
   saveDisabled: {
     opacity: 0.4,
   },
   saveText: {
-    color: '#111',
     fontWeight: '700',
   },
 });
