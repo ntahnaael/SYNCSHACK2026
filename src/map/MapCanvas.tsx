@@ -79,7 +79,7 @@ export default function MapCanvas({
 
 const styles = StyleSheet.create({
   map: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   pinWrap: {
     alignItems: 'center',

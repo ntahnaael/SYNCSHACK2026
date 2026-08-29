@@ -43,8 +43,8 @@ export default {
       [
         'expo-splash-screen',
         {
-          backgroundColor: '#FAF7F2',
-          image: './assets/images/authenticity-logo.png',
+          backgroundColor: '#FDF9F6',
+          image: './assets/images/hires_authenticity.png',
           imageWidth: 220,
         },
       ],

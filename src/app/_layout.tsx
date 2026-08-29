@@ -17,7 +17,7 @@ function InnerLayout() {
         <Stack
           screenOptions={{
             headerShown: false,
-            contentStyle: { backgroundColor: isDark ? '#111111' : '#f5f5f5' },
+            contentStyle: { backgroundColor: isDark ? '#0E0E0E' : '#FDF9F6' },
           }}
         />
         <BrandSplash />

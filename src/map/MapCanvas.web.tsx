@@ -174,7 +174,7 @@ export default function MapCanvas({
 
 const styles = StyleSheet.create({
   wrap: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   errorBox: {
     position: 'absolute',

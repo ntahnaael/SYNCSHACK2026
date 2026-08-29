@@ -7,12 +7,14 @@ type ThemeContextValue = {
   mode: ThemeMode;
   isDark: boolean;
   toggle: () => void;
+  setMode: (mode: ThemeMode) => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue>({
   mode: 'dark',
   isDark: true,
   toggle: () => {},
+  setMode: () => {},
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -23,7 +25,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<ThemeContextValue>(
-    () => ({ mode, isDark: mode === 'dark', toggle }),
+    () => ({ mode, isDark: mode === 'dark', toggle, setMode }),
     [mode, toggle],
   );
 

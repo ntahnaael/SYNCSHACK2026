@@ -5,7 +5,8 @@ import { Dimensions, StyleSheet, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-const BG = '#FAF7F2';
+import { useThemeMode } from '@/store/ThemeContext';
+
 const FADE_IN_MS = 700;
 const HOLD_MS = 1200;
 const FADE_OUT_MS = 850;
@@ -15,9 +16,15 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export function BrandSplash() {
   const [visible, setVisible] = useState(true);
+  const { isDark } = useThemeMode();
   const overlayOpacity = useSharedValue(1);
   const logoOpacity = useSharedValue(0);
   const logoScale = useSharedValue(0.92);
+
+  const bg = isDark ? '#0E0E0E' : '#FDF9F6';
+  const logoSource = isDark
+    ? require('@/assets/images/dark_mode_authenticity.png')
+    : require('@/assets/images/hires_authenticity.png');
 
   useEffect(() => {
     SplashScreen.hideAsync().catch(() => {});
@@ -62,13 +69,13 @@ export function BrandSplash() {
   return (
     <Animated.View
       pointerEvents="auto"
-      style={[styles.overlay, overlayStyle]}
+      style={[styles.overlay, { backgroundColor: bg }, overlayStyle]}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants">
       <View style={styles.center}>
         <Animated.View style={logoStyle}>
           <Image
-            source={require('@/assets/images/authenticity-logo.png')}
+            source={logoSource}
             style={styles.logo}
             contentFit="contain"
             accessibilityLabel="authentiCITY"
@@ -81,8 +88,7 @@ export function BrandSplash() {
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: BG,
+    ...StyleSheet.absoluteFill,
     zIndex: 1000,
     alignItems: 'center',
     justifyContent: 'center',

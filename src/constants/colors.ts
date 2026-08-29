@@ -7,7 +7,7 @@ import type { ThemeMode } from '@/store/ThemeContext';
 const palette = {
   dark: {
     // Surfaces
-    background: '#111111',
+    background: '#0E0E0E',
     surface: 'rgba(29,27,32,0.94)',
     surfaceBorder: 'rgba(255,255,255,0.16)',
     inputBg: 'rgba(255,255,255,0.08)',
@@ -44,7 +44,7 @@ const palette = {
     closeIcon: '#e8e1f4',
 
     // Pin
-    pinBorder: '#111111',
+    pinBorder: '#0E0E0E',
 
     // Misc
     errorText: '#ffb4b4',
@@ -52,11 +52,11 @@ const palette = {
     blurAmount: 12,
 
     // Map div background
-    mapBg: '#111111',
+    mapBg: '#0E0E0E',
   },
   light: {
     // Surfaces
-    background: '#f5f5f5',
+    background: '#FDF9F6',
     surface: 'rgba(255,255,255,0.96)',
     surfaceBorder: 'rgba(0,0,0,0.10)',
     inputBg: 'rgba(0,0,0,0.05)',
@@ -101,7 +101,7 @@ const palette = {
     blurAmount: 12,
 
     // Map div background
-    mapBg: '#f5f5f5',
+    mapBg: '#FDF9F6',
   },
 } as const;
 
