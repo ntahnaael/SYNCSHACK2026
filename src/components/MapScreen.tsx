@@ -21,6 +21,7 @@ import { SYDNEY } from '@/constants/pins';
 import { profileInitials } from '@/constants/profile';
 import { useAppColors } from '@/hooks/use-app-colors';
 import { GOOGLE_MAPS_API_KEY } from '@/lib/googleKey';
+import { hapticTap } from '@/lib/haptics';
 import MapCanvas from '@/map/MapCanvas';
 import { saveEventImage } from '@/services/event-images';
 import { useAuth } from '@/store/AuthContext';
@@ -32,7 +33,7 @@ import { useThemeMode } from '@/store/ThemeContext';
 import { canSeePin } from '@/sync/liveTypes';
 import type { EventPin, LatLng, PinCategory } from '@/types';
 
-import { CategoryLegend } from './CategoryLegend';
+import { FilterSheet } from './FilterSheet';
 import { PinSheet } from './PinSheet';
 import { ProfileSheet } from './ProfileSheet';
 import { SearchBar } from './SearchBar';
@@ -64,12 +65,14 @@ export function MapScreen() {
   const [viewCenter, setViewCenter] = useState<LatLng>(SYDNEY);
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [draft, setDraft] = useState<LatLng | null>(null);
+  const [draftPlace, setDraftPlace] = useState<string | null>(null);
   const [selected, setSelected] = useState<EventPin | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<PinCategory | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
   const [locateError, setLocateError] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchDismissSignal, setSearchDismissSignal] = useState(0);
   const [sharing, setSharing] = useState(false);
   const [trail, setTrail] = useState<LatLng[]>([]);
   const [territoryVisible, setTerritoryVisible] = useState(true);
@@ -79,14 +82,25 @@ export function MapScreen() {
   const trailWatchRef = useRef<Location.LocationSubscription | null>(null);
   const activeTerritoryRef = useRef<'blue' | 'red'>('blue');
   const addEventTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const filterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const addEventScale = useSharedValue(1);
+  const filterScale = useSharedValue(1);
+  const cornerScale = useSharedValue(1);
+  const cornerTilt = useSharedValue(0);
   const { isDark, toggle } = useThemeMode();
   const colors = useAppColors();
 
   const sheetOpen = Boolean(draft || selected);
+  const secondaryOpen = sheetOpen || profileOpen || legendOpen;
   const initials = profileInitials(profile.displayName ?? '');
   const addEventPressStyle = useAnimatedStyle(() => ({
     transform: [{ scale: addEventScale.value }],
+  }));
+  const filterPressStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: filterScale.value }],
+  }));
+  const cornerPressStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: cornerScale.value }, { rotate: `${cornerTilt.value}deg` }],
   }));
   const liveMarkers = useMemo(
     () =>
@@ -115,6 +129,7 @@ export function MapScreen() {
   useEffect(
     () => () => {
       if (addEventTimer.current) clearTimeout(addEventTimer.current);
+      if (filterTimer.current) clearTimeout(filterTimer.current);
     },
     [],
   );
@@ -178,6 +193,7 @@ export function MapScreen() {
 
   function openAddEvent() {
     if (addEventTimer.current) return;
+    hapticTap('medium');
 
     addEventScale.value = withSequence(
       withTiming(0.82, { duration: 70, easing: Easing.out(Easing.quad) }),
@@ -188,8 +204,46 @@ export function MapScreen() {
     addEventTimer.current = setTimeout(() => {
       addEventTimer.current = null;
       setSelected(null);
+      setDraftPlace(null);
       setDraft(viewCenter);
     }, 110);
+  }
+
+  function toggleFilters() {
+    if (legendOpen) {
+      hapticTap();
+      setLegendOpen(false);
+      return;
+    }
+    if (filterTimer.current) return;
+    hapticTap();
+    filterScale.value = withSequence(
+      withTiming(0.86, { duration: 65, easing: Easing.out(Easing.quad) }),
+      withSpring(1.07, { damping: 8, stiffness: 340, mass: 0.4 }),
+      withSpring(1, { damping: 10, stiffness: 290, mass: 0.44 }),
+    );
+    filterTimer.current = setTimeout(() => {
+      filterTimer.current = null;
+      setLegendOpen(true);
+    }, 95);
+  }
+
+  function animateCornerMark() {
+    hapticTap();
+    cornerScale.value = withSequence(
+      withTiming(0.94, { duration: 65, easing: Easing.out(Easing.quad) }),
+      withSpring(1.045, { damping: 7, stiffness: 330, mass: 0.42 }),
+      withSpring(1, { damping: 10, stiffness: 280, mass: 0.46 }),
+    );
+    cornerTilt.value = withSequence(
+      withTiming(-2.2, { duration: 70 }),
+      withSpring(1.6, { damping: 8, stiffness: 300, mass: 0.45 }),
+      withSpring(0, { damping: 11, stiffness: 260, mass: 0.5 }),
+    );
+  }
+
+  function dismissSearch() {
+    setSearchDismissSignal((current) => current + 1);
   }
 
   async function stopSharing() {
@@ -329,35 +383,64 @@ export function MapScreen() {
         friends={liveMarkers}
         onViewChange={setViewCenter}
         onPinPress={(pin) => {
+          hapticTap();
           setDraft(null);
+          setDraftPlace(null);
           setSelected(pin);
         }}
       />
-      <Image
-        accessibilityLabel="Sydney voxel artwork"
-        source={require('../../assets/images/sydney-voxel-mark.png')}
-        contentFit="contain"
-        pointerEvents="none"
-        style={[
-          styles.cornerMark,
-          windowWidth < 800
-            ? { top: insets.top + 6, right: 40, width: 86, height: 84 }
-            : { top: insets.top + 6, right: 25 },
-        ]}
-      />
+      {searchOpen ? (
+        <Pressable
+          accessibilityLabel="Close search"
+          style={styles.searchDismissLayer}
+          onPress={dismissSearch}
+        />
+      ) : null}
+      {!searchOpen ? (
+        <Animated.View
+          style={[
+            styles.cornerMark,
+            windowWidth < 800
+              ? { top: insets.top + 6, right: 40, width: 86, height: 84 }
+              : { top: insets.top + 6, right: 25 },
+            cornerPressStyle,
+          ]}>
+          <Pressable
+            accessibilityLabel="Animate Sydney artwork"
+            accessibilityRole="button"
+            onPress={animateCornerMark}
+            style={styles.cornerMarkButton}>
+            <Image
+              source={require('../../assets/images/sydney-voxel-mark.png')}
+              contentFit="contain"
+              style={styles.cornerMarkImage}
+            />
+          </Pressable>
+        </Animated.View>
+      ) : null}
       <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
         <Pressable
           accessibilityLabel="Open profile"
           style={[styles.profileBtn, { backgroundColor: profile.color }]}
-          onPress={() => setProfileOpen(true)}>
+          onPress={() => {
+            hapticTap();
+            dismissSearch();
+            setLegendOpen(false);
+            setProfileOpen(true);
+          }}>
           <Text style={styles.profileInitials}>{initials}</Text>
         </Pressable>
         <View style={styles.searchSlot}>
           <SearchBar
             onExpandedChange={setSearchOpen}
-            onSelect={(coord) => {
+            dismissSignal={searchDismissSignal}
+            onSelect={(coord, description) => {
               setCenter(coord);
               setViewCenter(coord);
+              setSelected(null);
+              setDraftPlace(description);
+              setDraft(coord);
+              dismissSearch();
             }}
           />
         </View>
@@ -404,37 +487,37 @@ export function MapScreen() {
       )}
       {locateError ? <Text style={[styles.locateError, { color: colors.errorText }]}>{locateError}</Text> : null}
 
-      {!sheetOpen && legendOpen && (
-        <Animated.View
-          entering={FadeIn.duration(180)}
-          exiting={FadeOut.duration(140)}
-          style={[styles.legendWrap, { top: insets.top + 192 }]}>
-          <CategoryLegend
-            selectedCategory={selectedCategory}
-            onSelectCategory={setSelectedCategory}
-          />
-        </Animated.View>
-      )}
-      {!sheetOpen && (
+      <FilterSheet
+        visible={legendOpen}
+        selectedCategory={selectedCategory}
+        onSelectCategory={setSelectedCategory}
+        onClose={() => setLegendOpen(false)}
+      />
+      {!secondaryOpen && (
         <Animated.View
           entering={ZoomIn.springify().delay(250)}
           exiting={ZoomOut.springify().damping(13).stiffness(260).mass(0.5)}
           style={[styles.fabWrap, { bottom: insets.bottom + 216 }]}>
-          <Pressable
-            accessibilityLabel="Show map categories"
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.voxelButton, !isDark && styles.voxelButtonLight, pressed && styles.voxelButtonPressed]}
-            onPress={() => setLegendOpen((open) => !open)}
-          >
-            <Image
-              source={require('../../assets/images/control-layers-voxel.png')}
-              contentFit="contain"
-              style={styles.voxelControlIcon}
-            />
-          </Pressable>
+          <Animated.View style={filterPressStyle}>
+            <Pressable
+              accessibilityLabel="Show map categories"
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.voxelButton,
+                { backgroundColor: colors.controlBg, borderColor: colors.controlBorder },
+                pressed && styles.voxelButtonPressed,
+              ]}
+              onPress={toggleFilters}>
+              <Image
+                source={require('../../assets/images/control-layers-voxel.png')}
+                contentFit="contain"
+                style={styles.voxelControlIcon}
+              />
+            </Pressable>
+          </Animated.View>
         </Animated.View>
       )}
-      {!sheetOpen && (
+      {!secondaryOpen && (
         <Animated.View
           entering={ZoomIn.springify().delay(200)}
           exiting={ZoomOut.springify().damping(13).stiffness(260).mass(0.5)}
@@ -442,8 +525,15 @@ export function MapScreen() {
           <Pressable
             accessibilityLabel={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             accessibilityRole="button"
-            style={({ pressed }) => [styles.voxelButton, !isDark && styles.voxelButtonLight, pressed && styles.voxelButtonPressed]}
-            onPress={toggle}
+            style={({ pressed }) => [
+              styles.voxelButton,
+              { backgroundColor: colors.controlBg, borderColor: colors.controlBorder },
+              pressed && styles.voxelButtonPressed,
+            ]}
+            onPress={() => {
+              hapticTap();
+              toggle();
+            }}
           >
             <Image
               source={
@@ -457,7 +547,7 @@ export function MapScreen() {
           </Pressable>
         </Animated.View>
       )}
-      {!sheetOpen && (
+      {!secondaryOpen && (
         <Animated.View
           entering={ZoomIn.springify()}
           exiting={ZoomOut.springify().damping(11).stiffness(300).mass(0.45)}
@@ -466,7 +556,11 @@ export function MapScreen() {
             <Pressable
               accessibilityLabel="Add event"
               accessibilityRole="button"
-              style={({ pressed }) => [styles.voxelButton, !isDark && styles.voxelButtonLight, pressed && styles.voxelButtonPressed]}
+              style={({ pressed }) => [
+                styles.voxelButton,
+                { backgroundColor: colors.controlBg, borderColor: colors.controlBorder },
+                pressed && styles.voxelButtonPressed,
+              ]}
               onPress={openAddEvent}
             >
               <Image
@@ -478,7 +572,7 @@ export function MapScreen() {
           </Animated.View>
         </Animated.View>
       )}
-      {!sheetOpen && (
+      {!secondaryOpen && (
         <Animated.View
           entering={ZoomIn.springify().delay(100)}
           exiting={ZoomOut.springify().damping(13).stiffness(260).mass(0.5)}
@@ -486,8 +580,13 @@ export function MapScreen() {
           <Pressable
             accessibilityLabel="Start territory tracking"
             accessibilityRole="button"
-            style={({ pressed }) => [styles.voxelButton, !isDark && styles.voxelButtonLight, pressed && styles.voxelButtonPressed]}
+            style={({ pressed }) => [
+              styles.voxelButton,
+              { backgroundColor: colors.controlBg, borderColor: colors.controlBorder },
+              pressed && styles.voxelButtonPressed,
+            ]}
             onPress={() => {
+              hapticTap();
               startTrail().catch(() => setLocateError('Could not start territory tracking.'));
             }}>
             <Image
@@ -529,13 +628,15 @@ export function MapScreen() {
         visible={sheetOpen}
         pin={selected}
         coord={draft}
-        anchorBottom={insets.bottom + 116}
+        initialPlace={draftPlace}
+        anchorBottom={Math.max(insets.bottom, 8)}
         isOwner={isOwner}
         viewerId={profile.id}
         viewerName={profile.displayName}
         onClose={() => {
           setSelected(null);
           setDraft(null);
+          setDraftPlace(null);
         }}
         onSave={async (input, photo) => {
           if (input.id && !isOwner) return selected as EventPin;
@@ -558,6 +659,7 @@ export function MapScreen() {
           if (photo) await saveEventImage(savedPin.id, photo.uri, photo.base64);
           setSelected(null);
           setDraft(null);
+          setDraftPlace(null);
           return savedPin;
         }}
         onDelete={
@@ -587,6 +689,20 @@ const styles = StyleSheet.create({
     height: 109,
     zIndex: 12,
     opacity: 0.96,
+  },
+  searchDismissLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 19,
+  },
+  cornerMarkButton: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cornerMarkImage: {
+    width: '100%',
+    height: '100%',
   },
   topBar: {
     position: 'absolute',
@@ -737,32 +853,20 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.24)',
-    shadowColor: '#FFFFFF',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
     elevation: 5,
   },
   voxelButtonPressed: {
     opacity: 0.7,
     transform: [{ scale: 0.94 }],
   },
-  voxelButtonLight: {
-    backgroundColor: 'rgba(255,255,255,0.32)',
-    borderColor: 'rgba(255,255,255,0.62)',
-    shadowOpacity: 0.42,
-  },
   voxelControlIcon: {
     width: 46,
     height: 46,
-  },
-  legendWrap: {
-    position: 'absolute',
-    left: 28,
-    zIndex: 30,
   },
   locateError: {
     position: 'absolute',
