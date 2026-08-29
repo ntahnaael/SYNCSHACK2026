@@ -1,7 +1,7 @@
 import * as Location from 'expo-location';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -47,6 +47,7 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
   const [photo, setPhoto] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [storedPhotoUri, setStoredPhotoUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const skipNextPlaceSearch = useRef(false);
 
   useEffect(() => {
     if (!visible) return;
@@ -72,6 +73,11 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
 
   useEffect(() => {
     const handle = setTimeout(() => {
+      if (skipNextPlaceSearch.current) {
+        skipNextPlaceSearch.current = false;
+        setHits([]);
+        return;
+      }
       if (place.trim().length < 2) {
         setHits([]);
         return;
@@ -88,7 +94,9 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
 
   const photoUri = photo?.uri ?? storedPhotoUri;
   const heroWidth = Math.min(windowWidth - 40, 920);
-  const heroHeight = Math.min(Math.round(heroWidth * (9 / 16)), Math.round(windowHeight * 0.36));
+  const heroHeight = pin
+    ? Math.min(Math.round(heroWidth * (9 / 16)), Math.round(windowHeight * 0.36))
+    : 150;
 
   async function useMyLocation() {
     setLocateHint(null);
@@ -102,6 +110,7 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
       latitude: position.coords.latitude,
       longitude: position.coords.longitude,
     });
+    skipNextPlaceSearch.current = true;
     setPlace('My location');
     setHits([]);
   }
@@ -151,7 +160,7 @@ export function PinSheet({ visible, pin, coord, onClose, onSave, onDelete }: Pro
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView style={styles.sheet} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
           <View style={styles.handle} />
-          {pin ? (
+          {(pin || coord) ? (
             <View style={[styles.eventHeroFrame, { width: heroWidth, height: heroHeight }]}>
               {photoUri ? (
                 <Image

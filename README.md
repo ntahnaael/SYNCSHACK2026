@@ -18,7 +18,13 @@ EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=paste_your_key_here
 
 ```bash
 npm install
-npx expo start
+npm run server
 ```
 
-Then press `w` for web, `a` for Android, or scan the QR code with Expo Go on a phone. iOS Google Maps needs a development build; Expo Go on iPhone uses Apple Maps.
+In a second terminal, start Expo:
+
+```bash
+npm run web
+```
+
+The local backend writes pins to `data/pins.json` and photos to `data/event-images/`. Then press `w` for web, `a` for Android, or scan the QR code with Expo Go on a phone. iOS Google Maps needs a development build; Expo Go on iPhone uses Apple Maps.
