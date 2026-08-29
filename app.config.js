@@ -43,9 +43,9 @@ export default {
       [
         'expo-splash-screen',
         {
-          backgroundColor: '#111111',
-          image: './assets/images/splash-icon.png',
-          imageWidth: 76,
+          backgroundColor: '#FAF7F2',
+          image: './assets/images/authenticity-logo.png',
+          imageWidth: 220,
         },
       ],
       [
