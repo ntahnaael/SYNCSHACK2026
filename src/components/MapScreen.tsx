@@ -467,13 +467,25 @@ export function MapScreen() {
           exiting={FadeOut.duration(100)}
           style={[styles.liveRow, { top: insets.top + 72 }]}>
           <View style={styles.statusTopRow}>
-            <Pressable style={styles.roomChip} onPress={() => setProfileOpen(true)}>
-              <Text style={styles.roomChipText}>
+            <Pressable
+              style={[
+                styles.roomChip,
+                { backgroundColor: colors.statusChipBg, borderColor: colors.statusChipBorder },
+              ]}
+              onPress={() => setProfileOpen(true)}>
+              <Text style={[styles.roomChipText, { color: colors.statusChipText }]}>
                 {buddyList.length === 1 ? '1 friend' : `${buddyList.length} friends`}
               </Text>
             </Pressable>
             <Pressable
-              style={[styles.shareChip, sharing && styles.shareChipOn, !liveEnabled && styles.shareChipOff]}
+              style={[
+                styles.shareChip,
+                {
+                  backgroundColor: sharing ? colors.statusChipActiveBg : colors.statusChipBg,
+                  borderColor: sharing ? colors.statusChipActiveBorder : colors.statusChipBorder,
+                },
+                !liveEnabled && styles.shareChipOff,
+              ]}
               onPress={() => {
                 if (sharing) {
                   stopSharing().catch(() => setLocateError('Could not stop sharing.'));
@@ -481,23 +493,46 @@ export function MapScreen() {
                   startSharing().catch(() => setLocateError('Could not share your location.'));
                 }
               }}>
-              <Text style={[styles.shareChipText, sharing && styles.shareChipTextOn]}>
+              <Text
+                style={[
+                  styles.shareChipText,
+                  { color: sharing ? colors.statusChipActiveText : colors.statusChipText },
+                ]}>
                 {sharing ? 'Sharing live' : 'Share live'}
               </Text>
             </Pressable>
           </View>
           <Pressable
             accessibilityLabel={territoryVisible ? 'Turn territory off' : 'Turn territory on'}
-            style={[styles.territoryToggle, territoryVisible && styles.territoryToggleOn]}
+            style={[
+              styles.territoryToggle,
+              {
+                backgroundColor: territoryVisible ? colors.territoryActiveBg : colors.statusChipBg,
+                borderColor: territoryVisible ? colors.territoryActiveBorder : colors.statusChipBorder,
+              },
+            ]}
             onPress={() => setTerritoryVisible((current) => !current)}>
             <Image
               source={require('../../assets/images/territory-flag-voxel.png')}
               contentFit="contain"
               style={styles.territoryIcon}
             />
-            <Text style={styles.territoryLabel}>Territory</Text>
-            <View style={[styles.territoryDot, territoryVisible && styles.territoryDotOn]} />
-            {territoryVisible ? <Text style={styles.territoryOnText}>ON</Text> : null}
+            <Text
+              style={[
+                styles.territoryLabel,
+                { color: territoryVisible ? colors.territoryActiveText : colors.statusChipText },
+              ]}>
+              Territory
+            </Text>
+            <View
+              style={[
+                styles.territoryDot,
+                { backgroundColor: territoryVisible ? colors.territoryOnText : colors.territoryDotOff },
+              ]}
+            />
+            {territoryVisible ? (
+              <Text style={[styles.territoryOnText, { color: colors.territoryOnText }]}>ON</Text>
+            ) : null}
           </Pressable>
         </Animated.View>
       )}
@@ -782,9 +817,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
-    backgroundColor: 'rgba(28,28,28,0.92)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
   },
   statusTopRow: {
     flexDirection: 'row',
@@ -799,20 +832,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(28,28,31,0.94)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
-  },
-  territoryToggleOn: {
-    backgroundColor: 'rgba(75,38,126,0.96)',
-    borderColor: 'rgba(154,108,235,0.72)',
   },
   territoryIcon: {
     width: 25,
     height: 25,
   },
   territoryLabel: {
-    color: '#F6F3F8',
     fontSize: 8,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -822,18 +848,12 @@ const styles = StyleSheet.create({
     height: 8,
     marginLeft: 'auto',
     borderRadius: 2,
-    backgroundColor: '#5A5A63',
-  },
-  territoryDotOn: {
-    backgroundColor: '#65C83D',
   },
   territoryOnText: {
-    color: '#65C83D',
     fontSize: 8,
     fontWeight: '800',
   },
   roomChipText: {
-    color: '#fff',
     fontWeight: '700',
     fontSize: 10,
   },
@@ -841,24 +861,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
-    backgroundColor: 'rgba(28,28,28,0.92)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  shareChipOn: {
-    backgroundColor: '#fff',
-    borderColor: '#fff',
   },
   shareChipOff: {
     opacity: 0.9,
   },
   shareChipText: {
-    color: '#eee',
     fontWeight: '700',
     fontSize: 10,
-  },
-  shareChipTextOn: {
-    color: '#111',
   },
   missing: {
     flex: 1,

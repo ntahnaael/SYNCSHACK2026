@@ -50,6 +50,8 @@ export function PixelBottomSheet({
   const collapsedOffset = Math.round(fullHeight * (1 - COLLAPSED_RATIO));
   const translateY = useRef(new Animated.Value(collapsedOffset)).current;
   const scale = useRef(new Animated.Value(0.94)).current;
+  const surfaceScaleX = useRef(new Animated.Value(1)).current;
+  const surfaceScaleY = useRef(new Animated.Value(1)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const startOffset = useRef(collapsedOffset);
   const expanded = useRef(false);
@@ -61,6 +63,42 @@ export function PixelBottomSheet({
     outputRange: [1, COLLAPSED_WIDTH_SCALE, 0.94],
     extrapolate: 'clamp',
   });
+  const composedWidthScale = Animated.multiply(widthScale, surfaceScaleX);
+
+  const settleSurface = () => {
+    surfaceScaleX.setValue(1);
+    surfaceScaleY.setValue(1);
+    Animated.parallel([
+      Animated.sequence([
+        Animated.timing(surfaceScaleX, {
+          toValue: 1.012,
+          duration: 65,
+          useNativeDriver: true,
+        }),
+        Animated.spring(surfaceScaleX, {
+          toValue: 1,
+          stiffness: 340,
+          damping: 11,
+          mass: 0.46,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.sequence([
+        Animated.timing(surfaceScaleY, {
+          toValue: 0.982,
+          duration: 65,
+          useNativeDriver: true,
+        }),
+        Animated.spring(surfaceScaleY, {
+          toValue: 1,
+          stiffness: 330,
+          damping: 10,
+          mass: 0.48,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+  };
 
   const zoneForOffset = (offset: number): HapticZone => {
     if (offset < collapsedOffset - SNAP_DISTANCE) return 'expanded';
@@ -79,11 +117,14 @@ export function PixelBottomSheet({
     updateHapticZone(nextExpanded ? 'expanded' : 'collapsed');
     Animated.spring(translateY, {
       toValue: value,
-      stiffness: 350,
-      damping: 21,
+      stiffness: 380,
+      damping: 28,
       mass: 0.82,
+      overshootClamping: true,
       useNativeDriver: true,
-    }).start();
+    }).start(({ finished }) => {
+      if (finished) settleSurface();
+    });
   };
 
   const dismiss = () => {
@@ -97,6 +138,7 @@ export function PixelBottomSheet({
         stiffness: 380,
         damping: 28,
         mass: 0.78,
+        overshootClamping: true,
         useNativeDriver: true,
       }),
       Animated.timing(backdropOpacity, {
@@ -114,6 +156,8 @@ export function PixelBottomSheet({
     hapticZone.current = 'collapsed';
     translateY.setValue(collapsedOffset);
     scale.setValue(0.9);
+    surfaceScaleX.setValue(1);
+    surfaceScaleY.setValue(1);
     backdropOpacity.setValue(0);
     hapticTap();
     Animated.parallel([
@@ -130,17 +174,25 @@ export function PixelBottomSheet({
         useNativeDriver: true,
       }),
     ]).start();
-  }, [backdropOpacity, collapsedOffset, scale, translateY, visible]);
+  }, [backdropOpacity, collapsedOffset, scale, surfaceScaleX, surfaceScaleY, translateY, visible]);
 
   const panResponder = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => false,
         onMoveShouldSetPanResponder: (_, gesture) =>
-          Math.abs(gesture.dy) > 4 && (!expanded.current || gesture.dy > 0),
+          Math.abs(gesture.dy) > 8 &&
+          Math.abs(gesture.dy) > Math.abs(gesture.dx) * 1.15 &&
+          (!expanded.current || gesture.dy > 0),
         onMoveShouldSetPanResponderCapture: (_, gesture) =>
-          Math.abs(gesture.dy) > 5 && (!expanded.current || gesture.dy > 0),
+          Math.abs(gesture.dy) > 10 &&
+          Math.abs(gesture.dy) > Math.abs(gesture.dx) * 1.15 &&
+          (!expanded.current || gesture.dy > 0),
         onPanResponderGrant: () => {
+          surfaceScaleX.stopAnimation();
+          surfaceScaleY.stopAnimation();
+          surfaceScaleX.setValue(1);
+          surfaceScaleY.setValue(1);
           translateY.stopAnimation((value) => {
             startOffset.current = value;
             hapticZone.current = zoneForOffset(value);
@@ -173,7 +225,7 @@ export function PixelBottomSheet({
         },
         onPanResponderTerminate: () => springTo(expanded.current ? 0 : collapsedOffset, expanded.current),
       }),
-    [collapsedOffset, fullHeight, translateY],
+    [collapsedOffset, fullHeight, surfaceScaleX, surfaceScaleY, translateY],
   );
 
   if (!visible) return null;
@@ -219,7 +271,7 @@ export function PixelBottomSheet({
               {
                 backgroundColor: colors.controlBg,
                 borderColor: colors.surfaceBorder,
-                transform: [{ scaleX: widthScale }],
+                transform: [{ scaleX: composedWidthScale }, { scaleY: surfaceScaleY }],
               },
             ]}>
             <View style={styles.handleTouchArea}>

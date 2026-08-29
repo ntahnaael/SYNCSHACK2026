@@ -28,6 +28,19 @@ const palette = {
     searchPlaceholder: '#938f99',
     searchLoaderColor: '#d0bcff',
 
+    // Map status controls
+    statusChipBg: '#1C1C1C',
+    statusChipBorder: 'rgba(255,255,255,0.10)',
+    statusChipText: '#F6F3F8',
+    statusChipActiveBg: '#FFFFFF',
+    statusChipActiveBorder: '#FFFFFF',
+    statusChipActiveText: '#111111',
+    territoryActiveBg: '#4B267E',
+    territoryActiveBorder: '#9A6CEB',
+    territoryActiveText: '#F6F3F8',
+    territoryDotOff: '#5A5A63',
+    territoryOnText: '#65C83D',
+
     // Text
     text: '#ffffff',
     textSecondary: '#eeeeee',
@@ -80,6 +93,19 @@ const palette = {
     searchInputText: '#1a1a1a',
     searchPlaceholder: '#999999',
     searchLoaderColor: '#6750a4',
+
+    // Map status controls
+    statusChipBg: '#FFFBFE',
+    statusChipBorder: '#CAC4D0',
+    statusChipText: '#1D1B20',
+    statusChipActiveBg: '#6750A4',
+    statusChipActiveBorder: '#6750A4',
+    statusChipActiveText: '#FFFFFF',
+    territoryActiveBg: '#EADDFF',
+    territoryActiveBorder: '#6750A4',
+    territoryActiveText: '#21005D',
+    territoryDotOff: '#79747E',
+    territoryOnText: '#2E7D32',
 
     // Text
     text: '#1a1a1a',
