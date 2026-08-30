@@ -41,6 +41,8 @@ import { SearchBar } from './SearchBar';
 
 const MIN_TRAIL_DISTANCE_METRES = 3;
 const TRAIL_STORAGE_PREFIX = 'syncshack.visited-trail.v1';
+const CORNER_EASTER_EGG_TAPS = 10;
+const CORNER_TAP_RESET_MS = 800;
 
 function distanceBetween(a: LatLng, b: LatLng) {
   const latitudeMetres = (a.latitude - b.latitude) * 111_111;
@@ -80,11 +82,14 @@ export function MapScreen() {
   const [territoryVisible, setTerritoryVisible] = useState(true);
   const [rivalTerritory, setRivalTerritory] = useState<LatLng[]>([]);
   const [trailReady, setTrailReady] = useState(false);
+  const [easterEggVisible, setEasterEggVisible] = useState(false);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
   const trailWatchRef = useRef<Location.LocationSubscription | null>(null);
   const activeTerritoryRef = useRef<'blue' | 'red'>('blue');
   const addEventTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const filterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cornerTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cornerTapCount = useRef(0);
   const addEventScale = useSharedValue(1);
   const filterScale = useSharedValue(1);
   const cornerScale = useSharedValue(1);
@@ -146,6 +151,7 @@ export function MapScreen() {
     () => () => {
       if (addEventTimer.current) clearTimeout(addEventTimer.current);
       if (filterTimer.current) clearTimeout(filterTimer.current);
+      if (cornerTapTimer.current) clearTimeout(cornerTapTimer.current);
     },
     [],
   );
@@ -256,6 +262,22 @@ export function MapScreen() {
       withSpring(1.6, { damping: 8, stiffness: 300, mass: 0.45 }),
       withSpring(0, { damping: 11, stiffness: 260, mass: 0.5 }),
     );
+
+    if (cornerTapTimer.current) clearTimeout(cornerTapTimer.current);
+    cornerTapCount.current += 1;
+
+    if (cornerTapCount.current >= CORNER_EASTER_EGG_TAPS) {
+      cornerTapCount.current = 0;
+      cornerTapTimer.current = null;
+      hapticTap('medium');
+      setEasterEggVisible(true);
+      return;
+    }
+
+    cornerTapTimer.current = setTimeout(() => {
+      cornerTapCount.current = 0;
+      cornerTapTimer.current = null;
+    }, CORNER_TAP_RESET_MS);
   }
 
   function dismissSearch() {
@@ -431,6 +453,27 @@ export function MapScreen() {
               contentFit="contain"
               style={styles.cornerMarkImage}
             />
+          </Pressable>
+        </Animated.View>
+      ) : null}
+      {easterEggVisible ? (
+        <Animated.View
+          entering={ZoomIn.springify().damping(12).stiffness(220)}
+          exiting={ZoomOut.duration(180)}
+          style={styles.easterEggOverlay}>
+          <Pressable
+            accessibilityLabel="Close easter egg"
+            accessibilityRole="button"
+            onPress={() => setEasterEggVisible(false)}
+            style={styles.easterEggDismiss}>
+            <Animated.View entering={FadeIn.duration(120)} style={styles.easterEggCard}>
+              <Image
+                source={require('../../assets/images/67-easter-egg.gif')}
+                contentFit="contain"
+                style={styles.easterEggImage}
+              />
+              <Text style={styles.easterEggHint}>tap anywhere to close</Text>
+            </Animated.View>
           </Pressable>
         </Animated.View>
       ) : null}
@@ -773,6 +816,38 @@ const styles = StyleSheet.create({
   cornerMarkImage: {
     width: '100%',
     height: '100%',
+  },
+  easterEggOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 200,
+    backgroundColor: 'rgba(0,0,0,0.88)',
+  },
+  easterEggDismiss: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  easterEggCard: {
+    width: '100%',
+    maxWidth: 500,
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  easterEggImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 18,
+  },
+  easterEggHint: {
+    position: 'absolute',
+    bottom: 14,
+    color: 'rgba(255,255,255,0.82)',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
   topBar: {
     position: 'absolute',
