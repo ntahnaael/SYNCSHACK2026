@@ -81,10 +81,12 @@ export function MapScreen() {
   const [trail, setTrail] = useState<LatLng[]>([]);
   const [territoryVisible, setTerritoryVisible] = useState(true);
   const [rivalTerritory, setRivalTerritory] = useState<LatLng[]>([]);
+  const [testGpsMode, setTestGpsMode] = useState(false);
   const [trailReady, setTrailReady] = useState(false);
   const [easterEggVisible, setEasterEggVisible] = useState(false);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
   const trailWatchRef = useRef<Location.LocationSubscription | null>(null);
+  const locationLongPressRef = useRef(false);
   const activeTerritoryRef = useRef<'blue' | 'red'>('blue');
   const addEventTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const filterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -357,6 +359,7 @@ export function MapScreen() {
 
   async function startTrail() {
     setLocateError(null);
+    setTestGpsMode(false);
     if (!trailReady) {
       setLocateError('Your visited map is still loading. Try again in a moment.');
       return;
@@ -392,6 +395,31 @@ export function MapScreen() {
     );
   }
 
+  function toggleTestGpsMode() {
+    // A long press may also emit an onPress when released; ignore that one.
+    locationLongPressRef.current = true;
+    setTimeout(() => {
+      locationLongPressRef.current = false;
+    }, 500);
+
+    if (testGpsMode) {
+      setTestGpsMode(false);
+      setLocateError(null);
+      return;
+    }
+    stopTrail();
+    setTestGpsMode(true);
+    setLocateError('Test GPS mode: tap the map to move and claim territory.');
+  }
+
+  function setTestLocation(coord: LatLng) {
+    if (!testGpsMode) return;
+    setUserLocation(coord);
+    setCenter(coord);
+    setViewCenter(coord);
+    appendTrail(coord);
+  }
+
   if (!GOOGLE_MAPS_API_KEY) {
     return (
       <View style={[styles.missing, { paddingTop: insets.top + 24, backgroundColor: colors.background }]}>
@@ -420,6 +448,7 @@ export function MapScreen() {
         userInitials={initials}
         friends={liveMarkers}
         onViewChange={setViewCenter}
+        onMapPress={setTestLocation}
         onPinPress={(pin) => {
           hapticTap();
           setDraft(null);
@@ -676,13 +705,19 @@ export function MapScreen() {
             accessibilityRole="button"
             style={({ pressed }) => [
               styles.voxelButton,
-              { backgroundColor: colors.controlBg, borderColor: colors.controlBorder },
+              {
+                backgroundColor: testGpsMode ? colors.territoryActiveBg : colors.controlBg,
+                borderColor: testGpsMode ? colors.territoryActiveBorder : colors.controlBorder,
+              },
               pressed && styles.voxelButtonPressed,
             ]}
             onPress={() => {
+              if (locationLongPressRef.current) return;
               hapticTap();
               startTrail().catch(() => setLocateError('Could not start territory tracking.'));
-            }}>
+            }}
+            onLongPress={toggleTestGpsMode}
+            delayLongPress={5000}>
             <Image
               source={require('../../assets/images/control-locate-voxel.png')}
               contentFit="contain"

@@ -23,6 +23,7 @@ export default function MapCanvas({
   userInitials,
   friends = [],
   onViewChange,
+  onMapPress,
   onPinPress,
 }: MapCanvasProps) {
   const mapRef = useRef<MapView>(null);
@@ -52,6 +53,7 @@ export default function MapCanvas({
       onRegionChangeComplete={(region) =>
         onViewChange({ latitude: region.latitude, longitude: region.longitude })
       }
+      onPress={(event) => onMapPress(event.nativeEvent.coordinate)}
       showsCompass={false}
       toolbarEnabled={false}>
       {territoryShape.length > 2 ? (

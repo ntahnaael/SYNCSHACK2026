@@ -20,5 +20,6 @@ export type MapCanvasProps = {
   userInitials: string;
   friends: FriendMarker[];
   onViewChange: (coord: LatLng) => void;
+  onMapPress: (coord: LatLng) => void;
   onPinPress: (pin: EventPin) => void;
 };

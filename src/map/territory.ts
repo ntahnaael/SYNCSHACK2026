@@ -1,6 +1,6 @@
 import type { LatLng } from '@/types';
 
-export const TERRITORY_RADIUS_METRES = 15;
+export const TERRITORY_RADIUS_METRES = 25;
 
 const MINIMUM_SOURCE_SPACING_METRES = 5;
 const MAXIMUM_SOURCE_POINTS = 480;
@@ -35,16 +35,18 @@ export function territoryPolygon(points: LatLng[]) {
 }
 
 function roundCorners(points: LatLng[]) {
-  if (points.length < 3) return points;
-  const rounded: LatLng[] = [points[0]];
-  for (let index = 1; index < points.length - 1; index += 1) {
-    const previous = points[index - 1];
-    const current = points[index];
-    const next = points[index + 1];
-    // Cut the inside of each turn into a short curve before buffering it.
-    rounded.push(blend(previous, current, 0.76), blend(current, next, 0.24));
+  let rounded = points;
+  // Two Chaikin passes turn hard GPS direction changes into a smooth curve.
+  for (let pass = 0; pass < 2; pass += 1) {
+    if (rounded.length < 3) break;
+    const next: LatLng[] = [rounded[0]];
+    for (let index = 0; index < rounded.length - 1; index += 1) {
+      next.push(blend(rounded[index], rounded[index + 1], 0.25));
+      next.push(blend(rounded[index], rounded[index + 1], 0.75));
+    }
+    next.push(rounded[rounded.length - 1]);
+    rounded = next;
   }
-  rounded.push(points[points.length - 1]);
   return rounded;
 }
 
@@ -94,5 +96,27 @@ function bufferedPath(points: LatLng[]) {
       longitude: point.longitude - normal.x * longitudeRadius,
     });
   }
-  return [...left, ...right.reverse()];
+
+  const endNormal = normalAt(points.length - 1);
+  const startNormal = normalAt(0);
+  const endCap = roundedCap(points[points.length - 1], endNormal, false);
+  const startCap = roundedCap(points[0], startNormal, true);
+  return [...left, ...endCap, ...right.reverse(), ...startCap];
+}
+
+function roundedCap(point: LatLng, normal: { x: number; y: number }, start: boolean) {
+  const normalAngle = Math.atan2(normal.y, normal.x);
+  const initialAngle = start ? normalAngle + Math.PI : normalAngle;
+  const latitudeRadius = TERRITORY_RADIUS_METRES / 111_111;
+  const longitudeRadius = TERRITORY_RADIUS_METRES / (111_111 * Math.cos((point.latitude * Math.PI) / 180));
+  const steps = 8;
+  const cap: LatLng[] = [];
+  for (let index = 1; index < steps; index += 1) {
+    const angle = initialAngle - (Math.PI * index) / steps;
+    cap.push({
+      latitude: point.latitude + Math.sin(angle) * latitudeRadius,
+      longitude: point.longitude + Math.cos(angle) * longitudeRadius,
+    });
+  }
+  return cap;
 }

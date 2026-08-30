@@ -40,6 +40,7 @@ export default function MapCanvas({
   userInitials,
   friends = [],
   onViewChange,
+  onMapPress,
   onPinPress,
 }: MapCanvasProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -50,6 +51,7 @@ export default function MapCanvas({
   const territoryPolygonRef = useRef<GooglePolygon | null>(null);
   const rivalTerritoryPolygonRef = useRef<GooglePolygon | null>(null);
   const onViewChangeRef = useRef(onViewChange);
+  const onMapPressRef = useRef(onMapPress);
   const onPinPressRef = useRef(onPinPress);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -57,6 +59,7 @@ export default function MapCanvas({
   const colors = useAppColors();
 
   onViewChangeRef.current = onViewChange;
+  onMapPressRef.current = onMapPress;
   onPinPressRef.current = onPinPress;
 
   useEffect(() => {
@@ -86,6 +89,10 @@ export default function MapCanvas({
           const next = map.getCenter();
           if (!next) return;
           onViewChangeRef.current({ latitude: next.lat(), longitude: next.lng() });
+        });
+        map.addListener('click', (event) => {
+          const point = event?.latLng;
+          if (point) onMapPressRef.current({ latitude: point.lat(), longitude: point.lng() });
         });
         mapRef.current = map;
         setReady(true);
